@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 const BSC_PERSPECTIVES = [
   { key: "financiera", label: "Financiera", icon: "💰", color: "#6B4C9A", question: "¿Qué resultados financieros debemos lograr?" },
   { key: "clientes", label: "Clientes", icon: "🤝", color: "#2D7DD2", question: "¿Cómo nos deben ver nuestros clientes?" },
@@ -7,7 +12,7 @@ const BSC_PERSPECTIVES = [
   { key: "aprendizaje", label: "Aprendizaje y Crecimiento", icon: "🌱", color: "#E8530E", question: "¿Cómo seguimos mejorando y creando valor?" },
 ];
 
-const SCALING_PHASES = [
+const SCALING_PHASES_BELECTRIC = [
   {
     id: 0, name: "Fase 0 — Blindar la caja", timeline: "Mes 1-3", color: "#E84855", icon: "🚨",
     people: "~25 (actual)", revenue: "Variable", margin: "Estabilizar", net: "Sobrevivir", backlog: "$2,000M",
@@ -84,19 +89,94 @@ const SCALING_PHASES = [
   },
 ];
 
+const SCALING_PHASES_KIKI = [
+  {
+    id: 0, name: "Fase 0 — Estabilizar operación", timeline: "Mes 1-3", color: "#E84855", icon: "🚨",
+    people: "Por definir", revenue: "Por definir", margin: "Estabilizar", net: "Estabilizar", backlog: "Por definir",
+    actions: [
+      "Determinar costos fijos mensuales reales",
+      "Implementar P&L mensual",
+      "Establecer reserva de caja objetivo",
+      "Mapear flujo de caja actual",
+      "Definir punto de equilibrio",
+    ],
+    hires: [], trigger: "Reserva de caja = 2 meses de costos fijos",
+    kpis: [
+      { label: "Reserva de caja", target: "2 meses costos fijos", current: "" },
+      { label: "P&L mensual", target: "Implementado", current: "" },
+      { label: "Forecast 90 días", target: "Implementado", current: "" },
+      { label: "Costos fijos mapeados", target: "100%", current: "" },
+    ],
+  },
+  {
+    id: 1, name: "Fase 1 — Suavizar ingresos", timeline: "Mes 3-6", color: "#F7B32B", icon: "📊",
+    people: "Por definir", revenue: "Por definir", margin: "Por definir", net: "Break-even constante", backlog: "Por definir",
+    actions: [
+      "Diversificar canales de venta",
+      "Explorar ingresos recurrentes (suscripciones, membresías)",
+      "Forecast de ventas a 90 días",
+      "Establecer mínimo de clientes activos simultáneos",
+      "Alerta temprana: si forecast baja del break-even",
+    ],
+    hires: [], trigger: "3 meses seguidos sobre break-even",
+    kpis: [
+      { label: "Ventas mínimas", target: ">Break-even", current: "" },
+      { label: "Canales activos", target: "3+", current: "" },
+      { label: "Ingresos recurrentes", target: "Por definir", current: "" },
+      { label: "Reserva de caja", target: "Mantenida", current: "" },
+    ],
+  },
+  {
+    id: 2, name: "Fase 2 — Crecer comercialmente", timeline: "Mes 6-12", color: "#45B69C", icon: "📈",
+    people: "Por definir", revenue: "Por definir", margin: "Por definir", net: "Crecimiento", backlog: "Por definir",
+    actions: [
+      "Desarrollar estrategia comercial activa",
+      "Pipeline formal de oportunidades",
+      "Expandir presencia de marca",
+      "Documentar casos de éxito",
+      "Implementar CRM",
+    ],
+    hires: [], trigger: "Crecimiento sostenido 3 meses + capacidad al límite",
+    kpis: [
+      { label: "Ventas promedio", target: "Por definir", current: "" },
+      { label: "Pipeline activo", target: "Por definir", current: "" },
+      { label: "Clientes nuevos/mes", target: "Por definir", current: "" },
+      { label: "Resultado neto", target: "Positivo", current: "" },
+    ],
+  },
+  {
+    id: 3, name: "Fase 3 — Escalar estructura", timeline: "Mes 12-18", color: "#2D7DD2", icon: "🚀",
+    people: "Por definir", revenue: "Por definir", margin: "Por definir", net: "Por definir", backlog: "Por definir",
+    actions: [
+      "Expandir equipo según demanda",
+      "Profesionalizar gestión administrativa",
+      "Departamentos formales con procesos documentados",
+      "Dashboard financiero en tiempo real",
+      "Distribución de utilidades formalizada",
+    ],
+    hires: [], trigger: "Rechazando oportunidades por capacidad + reserva de 3 meses",
+    kpis: [
+      { label: "Ventas", target: "Por definir", current: "" },
+      { label: "Equipo", target: "Por definir", current: "" },
+      { label: "Reserva caja", target: "3 meses", current: "" },
+      { label: "Resultado neto", target: "Por definir", current: "" },
+    ],
+  },
+];
+
 const PILLARS = [
   {
     id: 1, name: "Visión y Estrategia", icon: "🧭", color: "#E8530E",
     bscLink: ["financiera", "clientes", "procesos", "aprendizaje"],
     items: [
-      { key: "mision", label: "Misión", desc: "¿Por qué existe Belectric?", template: { sections: [
-        { key: "definicion", label: "Definición de la misión", placeholder: "Ej: Proveer soluciones eléctricas y de telecomunicaciones de alta calidad..." },
-        { key: "problema", label: "¿Qué problema resolvemos?", placeholder: "Problema principal que Belectric soluciona..." },
+      { key: "mision", label: "Misión", desc: "¿Por qué existimos?", template: { sections: [
+        { key: "definicion", label: "Definición de la misión", placeholder: "Nuestra razón de ser..." },
+        { key: "problema", label: "¿Qué problema resolvemos?", placeholder: "Problema principal que solucionamos..." },
         { key: "como", label: "¿Cómo lo resolvemos?", placeholder: "Nuestro enfoque único..." },
         { key: "paraquien", label: "¿Para quién lo hacemos?", placeholder: "Segmentos de clientes principales..." },
       ]}},
       { key: "vision", label: "Visión a 10 años", desc: "¿Cómo se ve el futuro?", template: { sections: [
-        { key: "declaracion", label: "Declaración de visión", placeholder: "En 10 años, Belectric será..." },
+        { key: "declaracion", label: "Declaración de visión", placeholder: "En 10 años seremos..." },
         { key: "tamano", label: "Tamaño y alcance", placeholder: "Empleados, facturación, cobertura..." },
         { key: "reputacion", label: "Reputación deseada", placeholder: "¿Cómo queremos ser conocidos?" },
         { key: "impacto", label: "Impacto en la industria", placeholder: "¿Qué cambio queremos generar?" },
@@ -108,7 +188,7 @@ const PILLARS = [
         { key: "antivalores", label: "Anti-valores", placeholder: "Lo que NO toleramos..." },
       ]}},
       { key: "bhag", label: "BHAG", desc: "Meta grande y audaz (10-25 años)", template: { sections: [
-        { key: "meta", label: "La meta audaz", placeholder: "Ej: Ser la empresa de ingeniería eléctrica más innovadora de Sudamérica..." },
+        { key: "meta", label: "La meta audaz", placeholder: "Nuestra meta más ambiciosa..." },
         { key: "porqueimporta", label: "¿Por qué importa?", placeholder: "La motivación profunda..." },
         { key: "indicador", label: "¿Cómo sabremos que lo logramos?", placeholder: "Indicadores concretos..." },
       ]}},
@@ -215,8 +295,7 @@ const STATUS_OPTIONS = [
   { value: "done", label: "Completado", emoji: "✅", bg: "#0f3d1a", text: "#81C784" },
 ];
 
-const INITIAL_CONTENT = {
-  // P&L REAL
+const INITIAL_CONTENT_BELECTRIC = {
   "5-pyl-estructura": "P&L MENSUAL REAL — BELECTRIC\n\nESTRUCTURA DE LA EMPRESA: ~25 personas\n  • Admin/oficina: 8-12 personas\n  • Maestros propios: ~15 personas\n  • Subcontrato: mínimo\n\nFACTURACIÓN: MUY VARIABLE\n  • Mes horrible: <$30M\n  • Mes malo: $50M\n  • Break-even: $74M\n  • Mes bueno: $120M\n  • Mes excelente: $180M\n\nCOSTOS VARIABLES (escalan con venta):\n  • Materiales: ~50% de la facturación\n\nCOSTOS FIJOS (se pagan siempre):\n  • Maestros propios (15 x ~$1M bruto + carga): ~$20M\n  • Admin/overhead: $15-18M\n  • Total fijo: $35-38M/mes\n\nMARGEN MARGINAL: ~50%\n  → Cada $1M nuevo de venta deja $500K de contribución\n  → Sobre el break-even ($74M), cada peso extra es casi pura utilidad",
   "5-breakeven-costosFijos": "COSTOS FIJOS MENSUALES: $35-38M\n\n  Maestros propios (15 personas): ~$20M\n    • Bruto promedio: $800K-1.2M\n    • Con carga (~35%): ~$1.3M promedio\n    • Capacidad actual: 80-90%\n\n  Overhead administrativo: $15-18M\n    • Sueldo GG: $3M+ líquido (~$5M con carga)\n    • Nómina admin (7-9 personas): ~$10M\n    • Arriendo + vehículos + servicios: $2-3M\n\n⚠️ Los maestros son costo FIJO disfrazado de directo.\nSe pagan estén o no en proyecto.",
   "5-breakeven-ventaMinima": "BREAK-EVEN: $74M/mes\n\nCálculo: $37M fijos / 0.50 margen contribución = $74M\n\nEscenarios de resultado:\n  $30M facturación → PÉRDIDA de $22M\n  $50M facturación → PÉRDIDA de $12M\n  $74M facturación → $0 (break-even)\n  $100M facturación → UTILIDAD de $13M\n  $120M facturación → UTILIDAD de $23M\n  $180M facturación → UTILIDAD de $53M\n\n⚠️ RIESGO: Sin reserva de caja, 2-3 meses malos seguidos = crisis de liquidez.\nCon $0 de colchón, un mes a $30M genera un déficit de $22M que no hay cómo cubrir.",
@@ -228,7 +307,6 @@ const INITIAL_CONTENT = {
   "5-proyecciones-largo": "PROYECCIÓN 3 AÑOS\n\nAño 1: Estabilizar ($120M/mes promedio)\n  • 25 personas, misma estructura\n  • Reserva de caja: 3 meses\n  • Resultado: +$20M/mes en meses promedio\n\nAño 2: Crecer ($150-200M/mes)\n  • 30 personas (+5 maestros, +1 jefe comercial)\n  • Pipeline activo >$300M permanente\n  • Backlog: $4,000M+\n\nAño 3: Escalar ($200-300M/mes)\n  • 35+ personas, departamentos formales\n  • Resultado: +$50M+/mes\n  • Sueldo GG: $5M líquido + distribución utilidades",
   "5-kpiFinancieros-indicadores": "KPIs CRÍTICOS — ORDEN DE PRIORIDAD:\n\n1. CAJA DISPONIBLE (en $ y en meses de costo fijo)\n2. Forecast de facturación a 90 días\n3. Facturación mensual vs break-even ($74M)\n4. Días de cobranza promedio\n5. N° de proyectos activos simultáneos\n6. Capacidad de maestros (%)\n7. Margen de contribución por proyecto\n8. Backlog en meses de facturación\n9. Pipeline comercial activo ($)",
   "5-kpiFinancieros-metas": "METAS 2026:\n\n• Reserva de caja: $0 → $74M (2 meses)\n• Facturación mínima mensual: nunca bajo $74M\n• Facturación promedio: $120M/mes\n• Proyectos activos: 4-5 simultáneos\n• Días de cobranza: <30 días\n• Backlog: $2,000M → $3,000M\n• Resultado neto acumulado: >$150M en el año",
-  // VISIÓN Y ESTRATEGIA
   "1-meta3-objetivo": "META 3 AÑOS: De sobrevivir a empresa sólida\n\nAño 1 (2026): ESTABILIZAR\n  • ~25 personas (misma estructura)\n  • Facturación promedio: $120M/mes\n  • Reserva: 3 meses de caja\n  • Nunca bajo break-even\n\nAño 2 (2027): CRECER\n  • ~30 personas (+maestros +comercial)\n  • Facturación: $150-200M/mes\n  • Backlog: $4,000M+\n\nAño 3 (2028): ESCALAR\n  • 35+ personas, estructura formal\n  • Facturación: $200-300M/mes\n  • Empresa que funciona sin depender 100% del GG",
   "1-planAnual-temaAnual": "2026: \"El año de la caja y la estabilidad\"\n\nFoco: Pasar de operar al día sin colchón a tener reserva de 3 meses y facturación predecible.",
   "1-planAnual-obj1": "OBJ #1: Reserva de caja de $74M antes de junio\nIndicador: Saldo en cuenta de reserva\nAcción: Todo mes >$120M → separar diferencia en cuenta aparte\nResponsable: GG",
@@ -238,12 +316,11 @@ const INITIAL_CONTENT = {
   "1-rocks-rock1": "ROCK #1: Implementar P&L mensual y forecast a 90 días\nEntregable: Planilla/sistema funcionando\nFecha: Marzo 2026\nMeta: Visibilidad financiera real, nunca más navegar a ciegas",
   "1-rocks-rock2": "ROCK #2: Iniciar reserva de caja\nEntregable: Cuenta separada con primer depósito\nFecha: Primer mes bueno que llegue\nMeta: Mínimo $30M de reserva en Q1",
   "1-rocks-rock3": "ROCK #3: Conseguir 1-2 proyectos nuevos\nEntregable: Contratos firmados\nFecha: Marzo 2026\nMeta: Mantener 4+ proyectos activos, llenar 10-20% de capacidad libre de maestros",
-  // COMERCIAL
   "4-pipeline-etapas": "[POR DEFINIR]\nHoy no hay pipeline formal. Los proyectos llegan por contactos y referidos.\nRiesgo: Cuando se acaban los referidos, no hay plan B.\n\nPropuesta de etapas:\n  1. Referido/contacto recibido\n  2. Reunión / visita técnica\n  3. Cotización enviada\n  4. Negociación\n  5. Contrato firmado",
   "4-metricas-kpis": "[POR IMPLEMENTAR]\nKPIs comerciales necesarios:\n  • N° de oportunidades activas\n  • Valor del pipeline ($)\n  • Tasa de cierre (%)\n  • Tiempo promedio de cierre (días)\n  • N° de proyectos activos\n  • Origen del proyecto (referido, licitación, proactivo)",
 };
 
-const INITIAL_STATUSES = {
+const INITIAL_STATUSES_BELECTRIC = {
   "5-pyl": "progress", "5-breakeven": "progress", "5-cxc": "progress", "5-flujoCaja": "idea",
   "5-costeo": "idea", "5-margenes": "none", "5-proyecciones": "idea", "5-kpiFinancieros": "idea",
   "1-meta3": "idea", "1-planAnual": "idea", "1-rocks": "idea",
@@ -252,6 +329,43 @@ const INITIAL_STATUSES = {
   "4-pipeline": "idea", "4-metricas": "none", "4-procesoComercial": "none",
   "4-propuestas": "none", "4-pricing": "none", "4-crm": "none",
 };
+
+const COMPANIES = {
+  belectric: {
+    key: "belectric", name: "Belectric", storageKey: "belectric-v4",
+    primaryColor: "#E8530E", secondaryColor: "#F7B32B",
+    gradient: "linear-gradient(135deg,#E8530E,#F7B32B)",
+    tagline: "~25 personas · 7 pilares · Plan de estabilización",
+    scalingPhases: SCALING_PHASES_BELECTRIC,
+    initialContent: INITIAL_CONTENT_BELECTRIC,
+    initialStatuses: INITIAL_STATUSES_BELECTRIC,
+    alerts: [
+      { icon: "🚨", title: "Fase 0: Blindar la caja — Reserva $0 de $74M", subtitle: "Plan de estabilización →", bg: "rgba(232,72,85,.1)", border: "rgba(232,72,85,.2)", color: "#E84855", onClick: "scaling" },
+      { icon: "⚖️", title: "$190M en cobranza judicial activa", subtitle: "$160M demanda ejecutiva + $30M adicionales retenidos", bg: "rgba(107,76,154,.08)", border: "rgba(107,76,154,.15)", color: "#6B4C9A", onClick: null },
+    ],
+    scalingSummary: { title: "📍 Situación actual", color: "#E84855", bg: "rgba(232,72,85,.08)", border: "rgba(232,72,85,.15)", lines: ["~25 personas · Facturación variable ($30M-$180M) · Costos fijos $37M/mes", "Break-even: $74M · Reserva caja: $0 · CxC en juicio: $190M", "Maestros al 80-90% · Proyectos llegan por referidos"] },
+    scalingRules: {
+      never: ["Reserva de caja < 2 meses de costos fijos ($74M)", "Facturación promedio 3 meses < break-even ($74M)", "No tienes forecast implementado a 90 días"],
+      go: ["Reserva de caja > 3 meses ($111M)", "3 meses seguidos arriba de $100M", "Maestros al 100% y rechazando proyectos", "Backlog > 9 meses de facturación actual"],
+    },
+  },
+  kiki: {
+    key: "kiki", name: "Kiki Cosméticos", storageKey: "kiki-v4",
+    primaryColor: "#E91E90", secondaryColor: "#FF6FB5",
+    gradient: "linear-gradient(135deg,#E91E90,#FF6FB5)",
+    tagline: "7 pilares · Plan estratégico",
+    scalingPhases: SCALING_PHASES_KIKI,
+    initialContent: {},
+    initialStatuses: {},
+    alerts: [],
+    scalingSummary: { title: "📍 Situación actual", color: "#E91E90", bg: "rgba(233,30,144,.08)", border: "rgba(233,30,144,.15)", lines: ["Completar con datos reales de la empresa"] },
+    scalingRules: {
+      never: ["Reserva de caja < 2 meses de costos fijos", "Ventas promedio 3 meses < break-even", "No tienes forecast implementado a 90 días"],
+      go: ["Reserva de caja > 3 meses de costos fijos", "3 meses seguidos sobre break-even", "Capacidad operativa al 100%", "Pipeline > 9 meses de ventas actuales"],
+    },
+  },
+};
+const COMPANY_ORDER = ["belectric", "kiki"];
 
 function getSt(v) { return STATUS_OPTIONS.find(s => s.value === v) || STATUS_OPTIONS[0]; }
 function calcProg(p, st) {
@@ -271,6 +385,7 @@ function Ring({ pct, clr, sz = 64 }) {
 }
 
 export default function App() {
+  const [co, setCo] = useState("belectric");
   const [st, setSt] = useState({});
   const [ct, setCt] = useState({});
   const [ap, setAp] = useState(null);
@@ -283,24 +398,38 @@ export default function App() {
   const [saved, setSaved] = useState(null);
   const [ep, setEp] = useState(0);
   const timer = useRef(null);
+  const CC = COMPANIES[co];
 
   useEffect(() => {
     (async () => {
       try {
-        const r = await window.storage.get("belectric-v4");
+        const r = await window.storage.get(CC.storageKey);
         if (r?.value) { const d = JSON.parse(r.value); if (d.st) setSt(d.st); if (d.ct) setCt(d.ct); if (d.bsc) setBsc(d.bsc); if (d.pn) setPn(d.pn); setLoaded(true); return; }
       } catch(e) {}
-      setSt(INITIAL_STATUSES); setCt(INITIAL_CONTENT); setLoaded(true);
+      setSt(CC.initialStatuses); setCt(CC.initialContent); setLoaded(true);
     })();
   }, []);
 
-  const save = useCallback(async (s, c, b, p) => {
+  const save = useCallback(async (s, c, b, p, key) => {
     setSaving(true);
-    try { await window.storage.set("belectric-v4", JSON.stringify({ st: s, ct: c, bsc: b, pn: p, ts: Date.now() })); setSaved(Date.now()); } catch(e) {}
+    try { await window.storage.set(key || CC.storageKey, JSON.stringify({ st: s, ct: c, bsc: b, pn: p, ts: Date.now() })); setSaved(Date.now()); } catch(e) {}
     setSaving(false);
-  }, []);
+  }, [CC.storageKey]);
 
   useEffect(() => { if (!loaded) return; if (timer.current) clearTimeout(timer.current); timer.current = setTimeout(() => save(st, ct, bsc, pn), 800); return () => clearTimeout(timer.current); }, [st, ct, bsc, pn, loaded, save]);
+
+  const switchCompany = useCallback(async (newCo) => {
+    if (newCo === co) return;
+    if (timer.current) clearTimeout(timer.current);
+    await save(st, ct, bsc, pn, CC.storageKey);
+    const cfg = COMPANIES[newCo];
+    try {
+      const r = await window.storage.get(cfg.storageKey);
+      if (r?.value) { const d = JSON.parse(r.value); setSt(d.st || {}); setCt(d.ct || {}); setBsc(d.bsc || {}); setPn(d.pn || {}); }
+      else throw new Error("no data");
+    } catch(e) { setSt(cfg.initialStatuses); setCt(cfg.initialContent); setBsc({}); setPn({}); }
+    setVw("dashboard"); setAp(null); setAi(null); setEp(0); setCo(newCo);
+  }, [co, st, ct, bsc, pn, save, CC.storageKey]);
 
   const uSt = (pid, ik, v) => setSt(p => ({ ...p, [`${pid}-${ik}`]: v }));
   const uCt = (pid, ik, sk, v) => setCt(p => ({ ...p, [`${pid}-${ik}-${sk}`]: v }));
@@ -312,17 +441,21 @@ export default function App() {
   const it = pl?.items.find(i => i.key === ai);
   const fSec = (pid, ik, t) => t ? t.sections.filter(s => ct[`${pid}-${ik}-${s.key}`]?.trim()).length : 0;
 
-  const Badge = () => <div style={{ position: "fixed", bottom: 16, right: 16, padding: "6px 12px", borderRadius: 16, background: saving ? "rgba(232,83,14,.25)" : saved ? "rgba(76,175,80,.15)" : "transparent", color: saving ? "#E8530E" : "#81C784", fontSize: 11, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", zIndex: 100, opacity: saving || saved ? 1 : 0, backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,.05)", transition: "all .3s" }}>{saving ? "💾 Guardando..." : "✅ Guardado"}</div>;
+  const Badge = () => <div style={{ position: "fixed", bottom: 16, right: 16, padding: "6px 12px", borderRadius: 16, background: saving ? hexToRgba(CC.primaryColor, 0.25) : saved ? "rgba(76,175,80,.15)" : "transparent", color: saving ? CC.primaryColor : "#81C784", fontSize: 11, fontWeight: 600, fontFamily: "'DM Sans',sans-serif", zIndex: 100, opacity: saving || saved ? 1 : 0, backdropFilter: "blur(6px)", border: "1px solid rgba(255,255,255,.05)", transition: "all .3s" }}>{saving ? "💾 Guardando..." : "✅ Guardado"}</div>;
   const F = <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet" />;
   const S = { minHeight: "100vh", background: "linear-gradient(165deg,#0a0a0a 0%,#1a1a2e 50%,#16213e 100%)", fontFamily: "'DM Sans',sans-serif", color: "#f0f0f0" };
   const Bk = (l, fn) => <button onClick={fn} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "#888", fontSize: 13, cursor: "pointer", padding: "0 0 12px", fontFamily: "'DM Sans',sans-serif" }}>← {l}</button>;
+
+  const TabBar = <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", backdropFilter: "blur(10px)", position: "sticky", top: 0, zIndex: 50 }}>
+    {COMPANY_ORDER.map(k => { const c = COMPANIES[k]; const active = co === k; return <button key={k} onClick={() => switchCompany(k)} style={{ flex: 1, padding: "12px 16px", background: active ? hexToRgba(c.primaryColor, 0.12) : "transparent", border: "none", borderBottom: active ? `3px solid ${c.primaryColor}` : "3px solid transparent", color: active ? c.primaryColor : "#666", fontSize: 14, fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", transition: "all .2s" }}>{c.name}</button>; })}
+  </div>;
 
   if (!loaded) return <div style={{ ...S, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>{F}<div style={{ fontSize: 36, animation: "p 1.5s infinite" }}>⚡</div><div style={{ color: "#888", fontSize: 14 }}>Cargando...</div><style>{`@keyframes p{0%,100%{opacity:1}50%{opacity:.4}}`}</style></div>;
 
   // DETAIL VIEW
   if (vw === "detail" && pl && it) {
     const cs = st[`${pl.id}-${it.key}`] || "none";
-    return <div style={S}>{F}<Badge />
+    return <div style={S}>{F}{TabBar}<Badge />
       <div style={{ padding: 20, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
         {Bk(pl.name, () => { setVw("pillar"); setAi(null); })}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 24 }}>{pl.icon}</span><div><h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: pl.color }}>{it.label}</h1><p style={{ margin: "2px 0 0", fontSize: 13, color: "#888" }}>{it.desc}</p></div></div>
@@ -351,7 +484,7 @@ export default function App() {
 
   // PILLAR VIEW
   if (vw === "pillar" && pl) {
-    return <div style={S}>{F}<Badge />
+    return <div style={S}>{F}{TabBar}<Badge />
       <div style={{ padding: 20 }}>
         {Bk("Pilares", () => { setVw("dashboard"); setAp(null); })}
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
@@ -378,7 +511,7 @@ export default function App() {
 
   // BSC VIEW
   if (vw === "bsc") {
-    return <div style={S}>{F}<Badge />
+    return <div style={S}>{F}{TabBar}<Badge />
       <div style={{ padding: 20 }}>{Bk("Volver", () => setVw("dashboard"))}<h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800 }}>🎯 Balanced Scorecard</h1><p style={{ margin: 0, fontSize: 13, color: "#888" }}>Estrategia → Ejecución</p></div>
       <div style={{ padding: "0 20px 40px" }}>
         {BSC_PERSPECTIVES.map(p => {
@@ -395,25 +528,23 @@ export default function App() {
 
   // SCALING VIEW
   if (vw === "scaling") {
-    return <div style={S}>{F}<Badge />
+    return <div style={S}>{F}{TabBar}<Badge />
       <div style={{ padding: 20 }}>{Bk("Volver", () => setVw("dashboard"))}
-        <h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, background: "linear-gradient(135deg,#E84855,#F7B32B)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Plan de Escalamiento</h1>
+        <h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, background: CC.gradient, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Plan de Escalamiento</h1>
         <p style={{ margin: 0, fontSize: 13, color: "#888" }}>Blindar → Estabilizar → Crecer → Escalar</p>
       </div>
 
       {/* Summary box */}
-      <div style={{ margin: "0 20px 16px", padding: 14, borderRadius: 12, background: "rgba(232,72,85,.08)", border: "1px solid rgba(232,72,85,.15)" }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "#E84855", marginBottom: 6 }}>📍 Situación actual</div>
+      <div style={{ margin: "0 20px 16px", padding: 14, borderRadius: 12, background: CC.scalingSummary.bg, border: `1px solid ${CC.scalingSummary.border}` }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: CC.scalingSummary.color, marginBottom: 6 }}>{CC.scalingSummary.title}</div>
         <div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.7 }}>
-          ~25 personas · Facturación variable ($30M-$180M) · Costos fijos $37M/mes<br/>
-          Break-even: $74M · Reserva caja: $0 · CxC en juicio: $190M<br/>
-          Maestros al 80-90% · Proyectos llegan por referidos
+          {CC.scalingSummary.lines.map((line, i) => <span key={i}>{line}{i < CC.scalingSummary.lines.length - 1 && <br/>}</span>)}
         </div>
       </div>
 
       <div style={{ padding: "0 20px", marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center" }}>
-          {SCALING_PHASES.map((ph, i) => <div key={ph.id} style={{ flex: 1, textAlign: "center", position: "relative" }}>
+          {CC.scalingPhases.map((ph, i) => <div key={ph.id} style={{ flex: 1, textAlign: "center", position: "relative" }}>
             <button onClick={() => setEp(ph.id)} style={{ width: 36, height: 36, borderRadius: "50%", border: `3px solid ${ph.color}`, background: ep === ph.id ? ph.color : "transparent", color: ep === ph.id ? "#fff" : ph.color, fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", position: "relative", zIndex: 2 }}>{ph.id}</button>
             <div style={{ fontSize: 10, color: ep === ph.id ? ph.color : "#666", marginTop: 4, fontWeight: 600 }}>{ph.timeline}</div>
             {i < 3 && <div style={{ position: "absolute", top: 18, left: "55%", right: "-45%", height: 2, background: "rgba(255,255,255,.1)", zIndex: 1 }} />}
@@ -421,7 +552,7 @@ export default function App() {
         </div>
       </div>
       <div style={{ padding: "0 20px 40px" }}>
-        {SCALING_PHASES.map(ph => {
+        {CC.scalingPhases.map(ph => {
           const open = ep === ph.id;
           return <div key={ph.id} style={{ marginBottom: 12, borderRadius: 14, border: `1px solid ${open ? ph.color + "44" : "rgba(255,255,255,.06)"}`, background: "rgba(255,255,255,.03)", overflow: "hidden" }}>
             <button onClick={() => setEp(open ? null : ph.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: 16, background: "none", border: "none", cursor: "pointer", color: "#f0f0f0", fontFamily: "'DM Sans',sans-serif", textAlign: "left" }}>
@@ -441,9 +572,9 @@ export default function App() {
           </div>;
         })}
         <div style={{ marginTop: 20, padding: 16, borderRadius: 14, background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.06)" }}>
-          <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: "#F7B32B" }}>⚖️ Reglas de decisión</h3>
-          <div style={{ marginBottom: 12 }}><div style={{ fontSize: 12, fontWeight: 700, color: "#E84855", marginBottom: 6 }}>🚫 NUNCA escalar si:</div><div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.6 }}>• Reserva de caja &lt; 2 meses de costos fijos ($74M)<br/>• Facturación promedio 3 meses &lt; break-even ($74M)<br/>• No tienes forecast implementado a 90 días</div></div>
-          <div><div style={{ fontSize: 12, fontWeight: 700, color: "#81C784", marginBottom: 6 }}>✅ Escalar cuando:</div><div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.6 }}>• Reserva de caja &gt; 3 meses ($111M)<br/>• 3 meses seguidos arriba de $100M<br/>• Maestros al 100% y rechazando proyectos<br/>• Backlog &gt; 9 meses de facturación actual</div></div>
+          <h3 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 700, color: CC.secondaryColor }}>⚖️ Reglas de decisión</h3>
+          <div style={{ marginBottom: 12 }}><div style={{ fontSize: 12, fontWeight: 700, color: "#E84855", marginBottom: 6 }}>🚫 NUNCA escalar si:</div><div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.6 }}>{CC.scalingRules.never.map((r, i) => <span key={i}>• {r}{i < CC.scalingRules.never.length - 1 && <br/>}</span>)}</div></div>
+          <div><div style={{ fontSize: 12, fontWeight: 700, color: "#81C784", marginBottom: 6 }}>✅ Escalar cuando:</div><div style={{ fontSize: 12, color: "#ccc", lineHeight: 1.6 }}>{CC.scalingRules.go.map((r, i) => <span key={i}>• {r}{i < CC.scalingRules.go.length - 1 && <br/>}</span>)}</div></div>
         </div>
       </div>
     </div>;
@@ -451,7 +582,7 @@ export default function App() {
 
   // COMPARE VIEW
   if (vw === "compare") {
-    return <div style={S}>{F}<Badge />
+    return <div style={S}>{F}{TabBar}<Badge />
       <div style={{ padding: 20 }}>{Bk("Volver", () => setVw("dashboard"))}<h2 style={{ fontSize: 18, fontWeight: 700, margin: "0 0 16px" }}>📊 Comparación</h2>
         {PILLARS.map(p => {
           const pg = calcProg(p, st); const d = p.items.filter(i => st[`${p.id}-${i.key}`] === "done").length; const pr = p.items.filter(i => st[`${p.id}-${i.key}`] === "progress").length; const id = p.items.filter(i => st[`${p.id}-${i.key}`] === "idea").length; const n = p.items.length - d - pr - id;
@@ -467,27 +598,24 @@ export default function App() {
   }
 
   // DASHBOARD
-  return <div style={S}>{F}<Badge />
+  return <div style={S}>{F}{TabBar}<Badge />
     <div style={{ padding: "24px 20px 16px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-      <span style={{ fontSize: 10, letterSpacing: 4, textTransform: "uppercase", color: "#555", fontFamily: "'Space Mono',monospace" }}>BELECTRIC</span>
-      <h1 style={{ fontSize: 28, fontWeight: 800, margin: "4px 0 6px", background: "linear-gradient(135deg,#E8530E,#F7B32B)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ESTRATEGIA</h1>
-      <p style={{ fontSize: 13, color: "#777", margin: 0 }}>~25 personas · 7 pilares · Plan de estabilización</p>
+      <span style={{ fontSize: 10, letterSpacing: 4, textTransform: "uppercase", color: "#555", fontFamily: "'Space Mono',monospace" }}>{CC.name.toUpperCase()}</span>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: "4px 0 6px", background: CC.gradient, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ESTRATEGIA</h1>
+      <p style={{ fontSize: 13, color: "#777", margin: 0 }}>{CC.tagline}</p>
     </div>
     <div style={{ margin: "20px 20px 8px", padding: 20, background: "rgba(255,255,255,.03)", borderRadius: 16, border: "1px solid rgba(255,255,255,.06)", display: "flex", alignItems: "center", gap: 20 }}>
-      <Ring pct={tp} clr="#E8530E" sz={72} />
+      <Ring pct={tp} clr={CC.primaryColor} sz={72} />
       <div><div style={{ fontSize: 11, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 2 }}>Madurez empresarial</div><div style={{ fontSize: 20, fontWeight: 800 }}>{tp < 20 ? "Inicial" : tp < 40 ? "En desarrollo" : tp < 60 ? "Estructurándose" : tp < 80 ? "Madurando" : "Sólido"}</div><div style={{ fontSize: 11, color: "#666", marginTop: 2 }}>{PILLARS.reduce((a, p) => a + p.items.filter(i => st[`${p.id}-${i.key}`] === "done").length, 0)}/{PILLARS.reduce((a, p) => a + p.items.length, 0)} completados</div></div>
     </div>
 
     {/* Alert banners */}
-    <div style={{ margin: "8px 20px 4px", padding: "12px 16px", borderRadius: 12, background: "rgba(232,72,85,.1)", border: "1px solid rgba(232,72,85,.2)", display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }} onClick={() => setVw("scaling")}>
-      <span style={{ fontSize: 18 }}>🚨</span><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: "#E84855" }}>Fase 0: Blindar la caja — Reserva $0 de $74M</div><div style={{ fontSize: 11, color: "#999" }}>Plan de estabilización →</div></div>
-    </div>
-    <div style={{ margin: "4px 20px 4px", padding: "10px 16px", borderRadius: 12, background: "rgba(107,76,154,.08)", border: "1px solid rgba(107,76,154,.15)", display: "flex", alignItems: "center", gap: 10 }}>
-      <span style={{ fontSize: 16 }}>⚖️</span><div><div style={{ fontSize: 12, fontWeight: 600, color: "#6B4C9A" }}>$190M en cobranza judicial activa</div><div style={{ fontSize: 11, color: "#888" }}>$160M demanda ejecutiva + $30M adicionales retenidos</div></div>
-    </div>
+    {CC.alerts.map((al, i) => <div key={i} style={{ margin: i === 0 ? "8px 20px 4px" : "4px 20px 4px", padding: "12px 16px", borderRadius: 12, background: al.bg, border: `1px solid ${al.border}`, display: "flex", alignItems: "center", gap: 10, cursor: al.onClick ? "pointer" : "default" }} onClick={() => al.onClick && setVw(al.onClick)}>
+      <span style={{ fontSize: 18 }}>{al.icon}</span><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700, color: al.color }}>{al.title}</div>{al.subtitle && <div style={{ fontSize: 11, color: "#999" }}>{al.subtitle}</div>}</div>
+    </div>)}
 
     <div style={{ display: "flex", gap: 6, padding: "12px 20px 8px", flexWrap: "wrap" }}>
-      {[{ k: "dashboard", l: "📋 Pilares" }, { k: "scaling", l: "🚀 Plan" }, { k: "bsc", l: "🎯 BSC" }, { k: "compare", l: "📊 Comparar" }].map(t => <button key={t.k} onClick={() => setVw(t.k)} style={{ padding: "8px 14px", borderRadius: 20, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: vw === t.k ? "rgba(232,83,14,.2)" : "rgba(255,255,255,.05)", color: vw === t.k ? "#E8530E" : "#888", fontFamily: "'DM Sans',sans-serif" }}>{t.l}</button>)}
+      {[{ k: "dashboard", l: "📋 Pilares" }, { k: "scaling", l: "🚀 Plan" }, { k: "bsc", l: "🎯 BSC" }, { k: "compare", l: "📊 Comparar" }].map(t => <button key={t.k} onClick={() => setVw(t.k)} style={{ padding: "8px 14px", borderRadius: 20, border: "none", fontSize: 13, fontWeight: 600, cursor: "pointer", background: vw === t.k ? hexToRgba(CC.primaryColor, 0.2) : "rgba(255,255,255,.05)", color: vw === t.k ? CC.primaryColor : "#888", fontFamily: "'DM Sans',sans-serif" }}>{t.l}</button>)}
     </div>
     <div style={{ padding: "8px 20px 40px" }}>
       {PILLARS.map(p => {
@@ -499,6 +627,6 @@ export default function App() {
         </button>;
       })}
     </div>
-    <div style={{ textAlign: "center", padding: 20, fontSize: 11, color: "#333" }}>Belectric — Estrategia · {new Date().getFullYear()}</div>
+    <div style={{ textAlign: "center", padding: 20, fontSize: 11, color: "#333" }}>{CC.name} — Estrategia · {new Date().getFullYear()}</div>
   </div>;
 }
