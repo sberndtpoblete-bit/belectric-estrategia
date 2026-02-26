@@ -375,8 +375,12 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
   const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
   const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
   const [tab, setTab] = useState("actual");
-  const dk = `${pid}-${ik}-tree${tab === "proyectado" ? "-proj" : ""}`;
-  const tree = getJSON(dk, { nodes: [{ id: "root", name: "Director General", cargo: "", children: [] }] });
+  const defaultTree = { nodes: [{ id: "root", name: "Director General", cargo: "", children: [] }] };
+  const actualKey = `${pid}-${ik}-tree`;
+  const projKey = `${pid}-${ik}-tree-proj`;
+  const dk = tab === "proyectado" ? projKey : actualKey;
+  const actualTree = getJSON(actualKey, defaultTree);
+  const tree = getJSON(dk, defaultTree);
   const save = (t) => setJSON(dk, t);
   const updateNode = (nodes, id, fn) => nodes.map(n => n.id === id ? fn({ ...n, children: [...(n.children||[])] }) : { ...n, children: updateNode(n.children||[], id, fn) });
   const removeNode = (nodes, id) => nodes.filter(n => n.id !== id).map(n => ({ ...n, children: removeNode(n.children||[], id) }));
@@ -384,6 +388,12 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
   const editNode = (id, field, val) => save({ nodes: updateNode(tree.nodes, id, n => ({ ...n, [field]: val })) });
   const delNode = (id) => save({ nodes: removeNode(tree.nodes, id) });
   const [editing, setEditing] = useState(null);
+  const switchTab = (t) => {
+    if (t === "proyectado" && !getJSON(projKey, null)) {
+      setJSON(projKey, actualTree);
+    }
+    setTab(t);
+  };
   const renderNode = (node, depth) => {
     const isEdit = editing === node.id;
     return <div key={node.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
@@ -400,19 +410,25 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
       </div>
       {(node.children||[]).length > 0 && <>
         <div style={{ width: 2, height: 20, background: "rgba(255,255,255,.1)" }} />
-        <div style={{ display: "flex", gap: 12, position: "relative" }}>
-          {node.children.length > 1 && <div style={{ position: "absolute", top: 0, left: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", right: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", height: 2, background: "rgba(255,255,255,.1)" }} />}
-          {node.children.map(c => <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-            <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
-            {renderNode(c, depth + 1)}
-          </div>)}
+        <div style={{ display: "flex", position: "relative" }}>
+          {node.children.map((c, idx) => {
+            const only = node.children.length === 1;
+            const first = idx === 0;
+            const last = idx === node.children.length - 1;
+            return <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", padding: "0 6px" }}>
+              {!only && <div style={{ position: "absolute", top: 0, left: first ? "50%" : 0, right: last ? "50%" : 0, height: 2, background: "rgba(255,255,255,.1)" }} />}
+              <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
+              {renderNode(c, depth + 1)}
+            </div>;
+          })}
         </div>
       </>}
     </div>;
   };
   return <div>
-    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-      {["actual", "proyectado"].map(t => <button key={t} onClick={() => setTab(t)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: tab === t ? color + "33" : "rgba(255,255,255,.05)", color: tab === t ? color : "#888", fontFamily: "'DM Sans',sans-serif", textTransform: "capitalize" }}>{t}</button>)}
+    <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
+      {["actual", "proyectado"].map(t => <button key={t} onClick={() => switchTab(t)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: tab === t ? color + "33" : "rgba(255,255,255,.05)", color: tab === t ? color : "#888", fontFamily: "'DM Sans',sans-serif", textTransform: "capitalize" }}>{t}</button>)}
+      {tab === "proyectado" && <div style={{ marginLeft: "auto" }}>{VBtn("↩ Resetear desde actual", () => { if (window.confirm("¿Reemplazar organigrama proyectado con el actual?")) setJSON(projKey, actualTree); }, "#E84855", true)}</div>}
     </div>
     <div style={{ overflowX: "auto", padding: "20px 0" }}>
       <div style={{ display: "inline-flex", minWidth: "100%", justifyContent: "center" }}>
