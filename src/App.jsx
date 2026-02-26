@@ -384,9 +384,9 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
   const editNode = (id, field, val) => save({ nodes: updateNode(tree.nodes, id, n => ({ ...n, [field]: val })) });
   const delNode = (id) => save({ nodes: removeNode(tree.nodes, id) });
   const [editing, setEditing] = useState(null);
-  const RNode = ({ node, depth = 0 }) => {
+  const renderNode = (node, depth) => {
     const isEdit = editing === node.id;
-    return <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
+    return <div key={node.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
       <div style={{ padding: "10px 14px", borderRadius: 10, background: depth === 0 ? `${color}22` : "rgba(255,255,255,.05)", border: `1px solid ${depth === 0 ? color + "55" : "rgba(255,255,255,.08)"}`, minWidth: 100, textAlign: "center", position: "relative" }}>
         {isEdit ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {VInp(node.name, v => editNode(node.id, "name", v), "Nombre")}
@@ -404,7 +404,7 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
           {node.children.length > 1 && <div style={{ position: "absolute", top: 0, left: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", right: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", height: 2, background: "rgba(255,255,255,.1)" }} />}
           {node.children.map(c => <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
             <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
-            <RNode node={c} depth={depth + 1} />
+            {renderNode(c, depth + 1)}
           </div>)}
         </div>
       </>}
@@ -416,7 +416,7 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
     </div>
     <div style={{ overflowX: "auto", padding: "20px 0" }}>
       <div style={{ display: "inline-flex", minWidth: "100%", justifyContent: "center" }}>
-        {tree.nodes.map(n => <RNode key={n.id} node={n} />)}
+        {tree.nodes.map(n => renderNode(n, 0))}
       </div>
     </div>
     <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>Toca un nodo para editar · + para agregar subordinado</div>
