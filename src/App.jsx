@@ -367,6 +367,356 @@ const COMPANIES = {
 };
 const COMPANY_ORDER = ["belectric", "kiki"];
 
+function genId() { return Math.random().toString(36).slice(2, 9); }
+const VBtn = (label, onClick, color, small) => <button onClick={onClick} style={{ padding: small ? "4px 10px" : "8px 14px", borderRadius: 8, border: `1px solid ${color || "#888"}44`, background: `${color || "#888"}18`, color: color || "#888", fontSize: small ? 11 : 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{label}</button>;
+const VInp = (value, onChange, placeholder, style2) => <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: "none", width: "100%", boxSizing: "border-box", ...style2 }} />;
+
+function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const [tab, setTab] = useState("actual");
+  const dk = `${pid}-${ik}-tree${tab === "proyectado" ? "-proj" : ""}`;
+  const tree = getJSON(dk, { nodes: [{ id: "root", name: "Director General", cargo: "", children: [] }] });
+  const save = (t) => setJSON(dk, t);
+  const updateNode = (nodes, id, fn) => nodes.map(n => n.id === id ? fn({ ...n, children: [...(n.children||[])] }) : { ...n, children: updateNode(n.children||[], id, fn) });
+  const removeNode = (nodes, id) => nodes.filter(n => n.id !== id).map(n => ({ ...n, children: removeNode(n.children||[], id) }));
+  const addChild = (parentId) => { const nid = genId(); save({ nodes: updateNode(tree.nodes, parentId, n => ({ ...n, children: [...(n.children||[]), { id: nid, name: "Nuevo cargo", cargo: "", children: [] }] })) }); };
+  const editNode = (id, field, val) => save({ nodes: updateNode(tree.nodes, id, n => ({ ...n, [field]: val })) });
+  const delNode = (id) => save({ nodes: removeNode(tree.nodes, id) });
+  const [editing, setEditing] = useState(null);
+  const RNode = ({ node, depth = 0 }) => {
+    const isEdit = editing === node.id;
+    return <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
+      <div style={{ padding: "10px 14px", borderRadius: 10, background: depth === 0 ? `${color}22` : "rgba(255,255,255,.05)", border: `1px solid ${depth === 0 ? color + "55" : "rgba(255,255,255,.08)"}`, minWidth: 100, textAlign: "center", position: "relative" }}>
+        {isEdit ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {VInp(node.name, v => editNode(node.id, "name", v), "Nombre")}
+          {VInp(node.cargo, v => editNode(node.id, "cargo", v), "Cargo")}
+          <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>{VBtn("✓", () => setEditing(null), "#4CAF50", true)}{node.id !== "root" && VBtn("🗑", () => { delNode(node.id); setEditing(null); }, "#E84855", true)}</div>
+        </div> : <div onClick={() => setEditing(node.id)} style={{ cursor: "pointer" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: depth === 0 ? color : "#e0e0e0" }}>{node.name || "..."}</div>
+          {node.cargo && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{node.cargo}</div>}
+        </div>}
+        <button onClick={() => addChild(node.id)} style={{ position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", border: `1px solid ${color}44`, background: "#1a1a2e", color: color, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 }}>+</button>
+      </div>
+      {(node.children||[]).length > 0 && <>
+        <div style={{ width: 2, height: 20, background: "rgba(255,255,255,.1)" }} />
+        <div style={{ display: "flex", gap: 12, position: "relative" }}>
+          {node.children.length > 1 && <div style={{ position: "absolute", top: 0, left: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", right: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", height: 2, background: "rgba(255,255,255,.1)" }} />}
+          {node.children.map(c => <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
+            <RNode node={c} depth={depth + 1} />
+          </div>)}
+        </div>
+      </>}
+    </div>;
+  };
+  return <div>
+    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      {["actual", "proyectado"].map(t => <button key={t} onClick={() => setTab(t)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: tab === t ? color + "33" : "rgba(255,255,255,.05)", color: tab === t ? color : "#888", fontFamily: "'DM Sans',sans-serif", textTransform: "capitalize" }}>{t}</button>)}
+    </div>
+    <div style={{ overflowX: "auto", padding: "20px 0" }}>
+      <div style={{ display: "inline-flex", minWidth: "100%", justifyContent: "center" }}>
+        {tree.nodes.map(n => <RNode key={n.id} node={n} />)}
+      </div>
+    </div>
+    <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>Toca un nodo para editar · + para agregar subordinado</div>
+  </div>;
+}
+
+function RolesEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-data`;
+  const data = getJSON(dk, []);
+  const save = (d) => setJSON(dk, d);
+  const [exp, setExp] = useState(null);
+  const depts = [...new Set(data.map(r => r.dept || "Sin departamento"))];
+  const addRole = () => save([...data, { id: genId(), name: "Nuevo cargo", dept: "General", reporta: "", responsabilidades: [""] }]);
+  const updateRole = (id, field, val) => save(data.map(r => r.id === id ? { ...r, [field]: val } : r));
+  const delRole = (id) => save(data.filter(r => r.id !== id));
+  return <div>
+    {depts.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#666", fontSize: 13 }}>No hay roles definidos aún</div>}
+    {depts.map(dept => <div key={dept} style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, padding: "4px 0", borderBottom: `1px solid ${color}22` }}>📁 {dept}</div>
+      <div style={{ display: "grid", gap: 8 }}>
+        {data.filter(r => (r.dept || "Sin departamento") === dept).map(r => {
+          const isExp = exp === r.id;
+          return <div key={r.id} style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,.04)", border: `1px solid ${isExp ? color + "44" : "rgba(255,255,255,.06)"}` }}>
+            {isExp ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {VInp(r.name, v => updateRole(r.id, "name", v), "Nombre del cargo")}
+              {VInp(r.dept, v => updateRole(r.id, "dept", v), "Departamento")}
+              {VInp(r.reporta, v => updateRole(r.id, "reporta", v), "Reporta a...")}
+              <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>Responsabilidades:</div>
+              {(r.responsabilidades||[""]).map((resp, idx) => <div key={idx} style={{ display: "flex", gap: 4 }}>
+                {VInp(resp, v => { const nr = [...(r.responsabilidades||[""])]; nr[idx] = v; updateRole(r.id, "responsabilidades", nr); }, `Responsabilidad ${idx+1}`)}
+                {idx === (r.responsabilidades||[""]).length - 1 && VBtn("+", () => updateRole(r.id, "responsabilidades", [...(r.responsabilidades||[""]), ""]), color, true)}
+              </div>)}
+              <div style={{ display: "flex", gap: 6 }}>{VBtn("✓ Cerrar", () => setExp(null), "#4CAF50", true)}{VBtn("🗑 Eliminar", () => { delRole(r.id); setExp(null); }, "#E84855", true)}</div>
+            </div> : <div onClick={() => setExp(r.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>👤</span>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div><div style={{ fontSize: 11, color: "#888" }}>{r.reporta ? `Reporta a: ${r.reporta}` : ""} · {(r.responsabilidades||[]).filter(Boolean).length} responsabilidades</div></div>
+              <span style={{ color: "#444" }}>✏️</span>
+            </div>}
+          </div>;
+        })}
+      </div>
+    </div>)}
+    <div style={{ marginTop: 12 }}>{VBtn("+ Agregar rol", addRole, color)}</div>
+  </div>;
+}
+
+function PipelineEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-pipeline`;
+  const STAGES = ["Búsqueda", "Filtro CV", "Entrevista", "Prueba técnica", "Oferta", "Contratado"];
+  const STAGE_COLORS = ["#E84855", "#F7B32B", "#2D7DD2", "#6B4C9A", "#45B69C", "#4CAF50"];
+  const data = getJSON(dk, { candidates: [] });
+  const save = (d) => setJSON(dk, d);
+  const addCandidate = () => save({ candidates: [...data.candidates, { id: genId(), name: "Nuevo candidato", cargo: "", stage: 0, notas: "" }] });
+  const updateCand = (id, field, val) => save({ candidates: data.candidates.map(c => c.id === id ? { ...c, [field]: val } : c) });
+  const delCand = (id) => save({ candidates: data.candidates.filter(c => c.id !== id) });
+  const moveCand = (id, dir) => save({ candidates: data.candidates.map(c => c.id === id ? { ...c, stage: Math.max(0, Math.min(STAGES.length - 1, c.stage + dir)) } : c) });
+  const [editId, setEditId] = useState(null);
+  return <div>
+    <div style={{ overflowX: "auto", paddingBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8, minWidth: STAGES.length * 160 }}>
+        {STAGES.map((stage, si) => {
+          const cands = data.candidates.filter(c => c.stage === si);
+          return <div key={si} style={{ flex: 1, minWidth: 150 }}>
+            <div style={{ padding: "8px 10px", borderRadius: "8px 8px 0 0", background: STAGE_COLORS[si] + "22", borderBottom: `2px solid ${STAGE_COLORS[si]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: STAGE_COLORS[si] }}>{stage}</span>
+              <span style={{ fontSize: 11, color: "#888", background: "rgba(0,0,0,.3)", padding: "2px 6px", borderRadius: 4 }}>{cands.length}</span>
+            </div>
+            <div style={{ minHeight: 80, padding: 6, background: "rgba(0,0,0,.15)", borderRadius: "0 0 8px 8px" }}>
+              {cands.map(c => <div key={c.id} style={{ padding: 8, marginBottom: 6, borderRadius: 8, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" }}>
+                {editId === c.id ? <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {VInp(c.name, v => updateCand(c.id, "name", v), "Nombre")}
+                  {VInp(c.cargo, v => updateCand(c.id, "cargo", v), "Cargo postulado")}
+                  {VInp(c.notas, v => updateCand(c.id, "notas", v), "Notas")}
+                  <div style={{ display: "flex", gap: 4 }}>{VBtn("✓", () => setEditId(null), "#4CAF50", true)}{VBtn("🗑", () => { delCand(c.id); setEditId(null); }, "#E84855", true)}</div>
+                </div> : <div>
+                  <div onClick={() => setEditId(c.id)} style={{ cursor: "pointer" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
+                    {c.cargo && <div style={{ fontSize: 11, color: "#888" }}>{c.cargo}</div>}
+                    {c.notas && <div style={{ fontSize: 10, color: "#666", marginTop: 4, fontStyle: "italic" }}>{c.notas}</div>}
+                  </div>
+                  <div style={{ display: "flex", gap: 4, marginTop: 6, justifyContent: "center" }}>
+                    {si > 0 && <button onClick={() => moveCand(c.id, -1)} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,.1)", background: "none", color: "#888", fontSize: 11, cursor: "pointer" }}>←</button>}
+                    {si < STAGES.length - 1 && <button onClick={() => moveCand(c.id, 1)} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,.1)", background: "none", color: "#888", fontSize: 11, cursor: "pointer" }}>→</button>}
+                  </div>
+                </div>}
+              </div>)}
+              {si === 0 && <button onClick={addCandidate} style={{ width: "100%", padding: 6, borderRadius: 6, border: "1px dashed rgba(255,255,255,.15)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>+ Candidato</button>}
+            </div>
+          </div>;
+        })}
+      </div>
+    </div>
+  </div>;
+}
+
+function ChecklistEditor({ pid, ik, ct, onUpdate, color, variant }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-${variant === "sops" ? "list" : "checklist"}`;
+  const SOP_STATES = [{ v: "done", l: "✅ Documentado", c: "#4CAF50" }, { v: "progress", l: "🔧 En progreso", c: "#2196F3" }, { v: "missing", l: "⬜ Faltante", c: "#888" }];
+  const defSections = variant === "sops" ? [{ id: genId(), title: "SOPs", items: [] }] : [{ id: genId(), title: "Semana 1", items: [] }, { id: genId(), title: "Semana 2", items: [] }, { id: genId(), title: "Semana 3-4", items: [] }];
+  const data = getJSON(dk, { sections: defSections });
+  const save = (d) => setJSON(dk, d);
+  const addSection = () => save({ sections: [...data.sections, { id: genId(), title: "Nueva sección", items: [] }] });
+  const addItem = (secId) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, items: [...s.items, { id: genId(), text: "", desc: "", done: false, estado: "missing" }] } : s) });
+  const updateItem = (secId, itemId, field, val) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, [field]: val } : i) } : s) });
+  const delItem = (secId, itemId) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, items: s.items.filter(i => i.id !== itemId) } : s) });
+  const renameSection = (secId, title) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, title } : s) });
+  const totalItems = data.sections.reduce((a, s) => a + s.items.length, 0);
+  const doneItems = data.sections.reduce((a, s) => a + s.items.filter(i => variant === "sops" ? i.estado === "done" : i.done).length, 0);
+  return <div>
+    {totalItems > 0 && <div style={{ marginBottom: 12, fontSize: 12, color: "#888" }}>{doneItems}/{totalItems} completados
+      <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,.06)", marginTop: 6, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: color, width: `${totalItems ? (doneItems/totalItems)*100 : 0}%`, transition: "width .3s" }} /></div>
+    </div>}
+    {data.sections.map(sec => <div key={sec.id} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        {VInp(sec.title, v => renameSection(sec.id, v), "Sección", { fontSize: 14, fontWeight: 700, background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,.1)", borderRadius: 0, padding: "4px 0", width: "auto", flex: 1 })}
+      </div>
+      {sec.items.map(item => <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
+        {variant === "sops" ? <select value={item.estado || "missing"} onChange={e => updateItem(sec.id, item.id, "estado", e.target.value)} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: SOP_STATES.find(s => s.v === (item.estado||"missing"))?.c || "#888", fontSize: 11, fontFamily: "'DM Sans',sans-serif", cursor: "pointer" }}>
+          {SOP_STATES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
+        </select> : <input type="checkbox" checked={item.done} onChange={e => updateItem(sec.id, item.id, "done", e.target.checked)} style={{ marginTop: 4, accentColor: color, cursor: "pointer" }} />}
+        <div style={{ flex: 1 }}>
+          {VInp(item.text, v => updateItem(sec.id, item.id, "text", v), variant === "sops" ? "Nombre del SOP" : "Tarea", { fontSize: 13, marginBottom: 4, textDecoration: item.done && variant !== "sops" ? "line-through" : "none", opacity: item.done && variant !== "sops" ? 0.5 : 1 })}
+          {VInp(item.desc, v => updateItem(sec.id, item.id, "desc", v), variant === "sops" ? "Área / notas" : "Descripción", { fontSize: 11, color: "#888" })}
+        </div>
+        <button onClick={() => delItem(sec.id, item.id)} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 4 }}>✕</button>
+      </div>)}
+      <button onClick={() => addItem(sec.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px dashed rgba(255,255,255,.12)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", marginTop: 4 }}>+ {variant === "sops" ? "SOP" : "Tarea"}</button>
+    </div>)}
+    <div style={{ marginTop: 8 }}>{VBtn("+ Sección", addSection, color)}</div>
+  </div>;
+}
+
+function ScorecardEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-scorecard`;
+  const data = getJSON(dk, { frecuencia: "Trimestral", formato: "1-5", roles: [] });
+  const save = (d) => setJSON(dk, d);
+  const addRole = () => save({ ...data, roles: [...data.roles, { id: genId(), name: "Nuevo rol", metricas: [{ id: genId(), kpi: "", meta: "", peso: "" }] }] });
+  const updateRole = (rid, field, val) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, [field]: val } : r) });
+  const delRole = (rid) => save({ ...data, roles: data.roles.filter(r => r.id !== rid) });
+  const addMetric = (rid) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, metricas: [...r.metricas, { id: genId(), kpi: "", meta: "", peso: "" }] } : r) });
+  const updateMetric = (rid, mid, field, val) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, metricas: r.metricas.map(m => m.id === mid ? { ...m, [field]: val } : m) } : r) });
+  const delMetric = (rid, mid) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, metricas: r.metricas.filter(m => m.id !== mid) } : r) });
+  return <div>
+    <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Frecuencia</div>
+        <select value={data.frecuencia} onChange={e => save({ ...data, frecuencia: e.target.value })} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", width: "100%", cursor: "pointer" }}>
+          {["Mensual", "Trimestral", "Semestral", "Anual"].map(f => <option key={f} value={f}>{f}</option>)}
+        </select></div>
+      <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Escala</div>
+        <select value={data.formato} onChange={e => save({ ...data, formato: e.target.value })} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", width: "100%", cursor: "pointer" }}>
+          {["1-5", "1-10", "Porcentaje"].map(f => <option key={f} value={f}>{f}</option>)}
+        </select></div>
+    </div>
+    {data.roles.map(role => <div key={role.id} style={{ marginBottom: 16, padding: 12, borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 16 }}>👤</span>
+        {VInp(role.name, v => updateRole(role.id, "name", v), "Nombre del rol", { flex: 1, fontWeight: 700 })}
+        <button onClick={() => delRole(role.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 4, fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, padding: "0 4px" }}><span>KPI</span><span>Meta</span><span>Peso</span><span></span></div>
+      {role.metricas.map(m => <div key={m.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 4, marginBottom: 4 }}>
+        {VInp(m.kpi, v => updateMetric(role.id, m.id, "kpi", v), "Indicador")}
+        {VInp(m.meta, v => updateMetric(role.id, m.id, "meta", v), "Meta")}
+        {VInp(m.peso, v => updateMetric(role.id, m.id, "peso", v), "%")}
+        <button onClick={() => delMetric(role.id, m.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
+      </div>)}
+      <button onClick={() => addMetric(role.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px dashed rgba(255,255,255,.12)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", marginTop: 4 }}>+ Métrica</button>
+    </div>)}
+    <div style={{ marginTop: 8 }}>{VBtn("+ Agregar rol", addRole, color)}</div>
+  </div>;
+}
+
+function CardsEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-cards`;
+  const ICONS = ["🎯", "💡", "🤝", "🔥", "⭐", "🎉", "🏆", "💪", "🌟", "❤️", "🚀", "🎨"];
+  const data = getJSON(dk, []);
+  const save = (d) => setJSON(dk, d);
+  const addCard = () => save([...data, { id: genId(), title: "", desc: "", icon: ICONS[data.length % ICONS.length] }]);
+  const updateCard = (id, field, val) => save(data.map(c => c.id === id ? { ...c, [field]: val } : c));
+  const delCard = (id) => save(data.filter(c => c.id !== id));
+  return <div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      {data.map(card => <div key={card.id} style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)", position: "relative" }}>
+        <button onClick={() => delCard(card.id)} style={{ position: "absolute", top: 6, right: 8, background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
+        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          {ICONS.slice(0, 6).map(ic => <span key={ic} onClick={() => updateCard(card.id, "icon", ic)} style={{ cursor: "pointer", fontSize: 16, opacity: card.icon === ic ? 1 : 0.3, transition: "opacity .2s" }}>{ic}</span>)}
+        </div>
+        {VInp(card.title, v => updateCard(card.id, "title", v), "Título", { fontWeight: 700, marginBottom: 6 })}
+        <textarea value={card.desc} onChange={e => updateCard(card.id, "desc", e.target.value)} placeholder="Descripción..." style={{ width: "100%", minHeight: 60, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.2)", color: "#ccc", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+      </div>)}
+    </div>
+    <div style={{ marginTop: 12 }}>{VBtn("+ Agregar tarjeta", addCard, color)}</div>
+  </div>;
+}
+
+function ProcessFlowEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-flow`;
+  const data = getJSON(dk, { flows: [] });
+  const save = (d) => setJSON(dk, d);
+  const addFlow = () => save({ flows: [...data.flows, { id: genId(), name: "Nuevo flujo", steps: [{ id: genId(), name: "Paso 1", desc: "" }] }] });
+  const updateFlow = (fid, field, val) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, [field]: val } : f) });
+  const delFlow = (fid) => save({ flows: data.flows.filter(f => f.id !== fid) });
+  const addStep = (fid) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, steps: [...f.steps, { id: genId(), name: "Nuevo paso", desc: "" }] } : f) });
+  const updateStep = (fid, sid, field, val) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, steps: f.steps.map(s => s.id === sid ? { ...s, [field]: val } : s) } : f) });
+  const delStep = (fid, sid) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, steps: f.steps.filter(s => s.id !== sid) } : f) });
+  return <div>
+    {data.flows.map(flow => <div key={flow.id} style={{ marginBottom: 16, padding: 12, borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        {VInp(flow.name, v => updateFlow(flow.id, "name", v), "Nombre del flujo", { fontWeight: 700, fontSize: 14, flex: 1 })}
+        <button onClick={() => delFlow(flow.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 0, minWidth: "fit-content" }}>
+          {flow.steps.map((step, si) => <div key={step.id} style={{ display: "flex", alignItems: "center" }}>
+            <div style={{ minWidth: 130, padding: 10, borderRadius: 10, background: `${color}${(15 + si * 8).toString(16).padStart(2, "0")}`, border: `1px solid ${color}33`, position: "relative" }}>
+              {VInp(step.name, v => updateStep(flow.id, step.id, "name", v), "Paso", { fontWeight: 600, fontSize: 12, background: "transparent", border: "none", padding: "2px 0" })}
+              {VInp(step.desc, v => updateStep(flow.id, step.id, "desc", v), "Detalle", { fontSize: 10, color: "#888", background: "transparent", border: "none", padding: "2px 0" })}
+              {flow.steps.length > 1 && <button onClick={() => delStep(flow.id, step.id)} style={{ position: "absolute", top: 2, right: 4, background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 10 }}>✕</button>}
+            </div>
+            {si < flow.steps.length - 1 && <span style={{ color: color, fontSize: 18, padding: "0 4px", flexShrink: 0 }}>→</span>}
+          </div>)}
+          <button onClick={() => addStep(flow.id)} style={{ marginLeft: 8, width: 32, height: 32, borderRadius: "50%", border: `1px dashed ${color}44`, background: "none", color: color, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>+</button>
+        </div>
+      </div>
+    </div>)}
+    <div style={{ marginTop: 8 }}>{VBtn("+ Agregar flujo", addFlow, color)}</div>
+  </div>;
+}
+
+function StandardsEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-standards`;
+  const data = getJSON(dk, []);
+  const save = (d) => setJSON(dk, d);
+  const addStd = () => save([...data, { id: genId(), name: "", desc: "", nivel: 0, inspecciones: "" }]);
+  const updateStd = (id, field, val) => save(data.map(s => s.id === id ? { ...s, [field]: val } : s));
+  const delStd = (id) => save(data.filter(s => s.id !== id));
+  const getColor = (n) => n < 40 ? "#E84855" : n < 70 ? "#F7B32B" : "#4CAF50";
+  return <div>
+    {data.map(std => <div key={std.id} style={{ marginBottom: 10, padding: 12, borderRadius: 10, background: "rgba(255,255,255,.03)", border: `1px solid ${getColor(std.nivel)}22` }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        {VInp(std.name, v => updateStd(std.id, "name", v), "Nombre del estándar", { flex: 1, fontWeight: 600 })}
+        <button onClick={() => delStd(std.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
+      </div>
+      {VInp(std.desc, v => updateStd(std.id, "desc", v), "Descripción / norma aplicable")}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+        <span style={{ fontSize: 11, color: "#888", flexShrink: 0 }}>Cumplimiento:</span>
+        <input type="range" min={0} max={100} value={std.nivel} onChange={e => updateStd(std.id, "nivel", parseInt(e.target.value))} style={{ flex: 1, accentColor: getColor(std.nivel) }} />
+        <span style={{ fontSize: 14, fontWeight: 700, color: getColor(std.nivel), minWidth: 40, textAlign: "right" }}>{std.nivel}%</span>
+      </div>
+      {VInp(std.inspecciones, v => updateStd(std.id, "inspecciones", v), "Puntos de inspección", { marginTop: 6, fontSize: 11 })}
+    </div>)}
+    <div style={{ marginTop: 8 }}>{VBtn("+ Agregar estándar", addStd, color)}</div>
+  </div>;
+}
+
+function SuppliersEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-list`;
+  const data = getJSON(dk, []);
+  const save = (d) => setJSON(dk, d);
+  const addSup = () => save([...data, { id: genId(), name: "", rubro: "", contacto: "", rating: 3, notas: "" }]);
+  const updateSup = (id, field, val) => save(data.map(s => s.id === id ? { ...s, [field]: val } : s));
+  const delSup = (id) => save(data.filter(s => s.id !== id));
+  const sorted = [...data].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  return <div>
+    {sorted.map(sup => <div key={sup.id} style={{ marginBottom: 10, padding: 12, borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 18 }}>🏭</span>
+        {VInp(sup.name, v => updateSup(sup.id, "name", v), "Nombre del proveedor", { flex: 1, fontWeight: 600 })}
+        <button onClick={() => delSup(sup.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
+        {VInp(sup.rubro, v => updateSup(sup.id, "rubro", v), "Rubro / categoría")}
+        {VInp(sup.contacto, v => updateSup(sup.id, "contacto", v), "Contacto")}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+        <span style={{ fontSize: 11, color: "#888" }}>Evaluación:</span>
+        {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={() => updateSup(sup.id, "rating", n)} style={{ cursor: "pointer", fontSize: 18, opacity: n <= (sup.rating || 0) ? 1 : 0.2, transition: "opacity .2s" }}>⭐</span>)}
+      </div>
+      {VInp(sup.notas, v => updateSup(sup.id, "notas", v), "Notas")}
+    </div>)}
+    <div style={{ marginTop: 8 }}>{VBtn("+ Agregar proveedor", addSup, color)}</div>
+  </div>;
+}
+
 function getSt(v) { return STATUS_OPTIONS.find(s => s.value === v) || STATUS_OPTIONS[0]; }
 function calcProg(p, st) {
   const t = p.items.length; if (!t) return 0;
@@ -438,7 +788,6 @@ export default function App() {
   const uPn = (id, v) => setPn(p => ({ ...p, [id]: v }));
   const getJSON = (key, fallback) => { try { return JSON.parse(ct[key] || "null") || fallback; } catch { return fallback; } };
   const setJSON = (key, data) => uCt2(key, JSON.stringify(data));
-  const genId = () => Math.random().toString(36).slice(2, 9);
 
   const tp = Math.round(PILLARS.reduce((a, p) => a + calcProg(p, st), 0) / PILLARS.length);
   const pl = PILLARS.find(p => p.id === ap);
@@ -464,347 +813,7 @@ export default function App() {
 
   if (!loaded) return <div style={{ ...S, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>{F}<div style={{ fontSize: 36, animation: "p 1.5s infinite" }}>⚡</div><div style={{ color: "#888", fontSize: 14 }}>Cargando...</div><style>{`@keyframes p{0%,100%{opacity:1}50%{opacity:.4}}`}</style></div>;
 
-  // ─── VISUAL EDITOR COMPONENTS ───
-  const Btn = (label, onClick, color, small) => <button onClick={onClick} style={{ padding: small ? "4px 10px" : "8px 14px", borderRadius: 8, border: `1px solid ${color || pl?.color || "#888"}44`, background: `${color || pl?.color || "#888"}18`, color: color || pl?.color || "#888", fontSize: small ? 11 : 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{label}</button>;
-  const Inp = (value, onChange, placeholder, style2) => <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: "none", width: "100%", boxSizing: "border-box", ...style2 }} />;
-
-  // OrgChart Editor
-  const OrgChartEditor = ({ pid, ik }) => {
-    const [tab, setTab] = useState("actual");
-    const dk = `${pid}-${ik}-tree${tab === "proyectado" ? "-proj" : ""}`;
-    const tree = getJSON(dk, { nodes: [{ id: "root", name: "Director General", cargo: "", children: [] }] });
-    const save = (t) => setJSON(dk, t);
-    const findNode = (nodes, id) => { for (const n of nodes) { if (n.id === id) return n; const r = findNode(n.children || [], id); if (r) return r; } return null; };
-    const updateNode = (nodes, id, fn) => nodes.map(n => n.id === id ? fn({ ...n, children: [...(n.children||[])] }) : { ...n, children: updateNode(n.children||[], id, fn) });
-    const removeNode = (nodes, id) => nodes.filter(n => n.id !== id).map(n => ({ ...n, children: removeNode(n.children||[], id) }));
-    const addChild = (parentId) => { const nid = genId(); save({ nodes: updateNode(tree.nodes, parentId, n => ({ ...n, children: [...(n.children||[]), { id: nid, name: "Nuevo cargo", cargo: "", children: [] }] })) }); };
-    const editNode = (id, field, val) => save({ nodes: updateNode(tree.nodes, id, n => ({ ...n, [field]: val })) });
-    const delNode = (id) => save({ nodes: removeNode(tree.nodes, id) });
-    const [editing, setEditing] = useState(null);
-    const RNode = ({ node, depth = 0 }) => {
-      const isEdit = editing === node.id;
-      return <div style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
-        <div style={{ padding: "10px 14px", borderRadius: 10, background: depth === 0 ? `${pl.color}22` : "rgba(255,255,255,.05)", border: `1px solid ${depth === 0 ? pl.color + "55" : "rgba(255,255,255,.08)"}`, minWidth: 100, textAlign: "center", position: "relative" }}>
-          {isEdit ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {Inp(node.name, v => editNode(node.id, "name", v), "Nombre")}
-            {Inp(node.cargo, v => editNode(node.id, "cargo", v), "Cargo")}
-            <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>{Btn("✓", () => setEditing(null), "#4CAF50", true)}{node.id !== "root" && Btn("🗑", () => { delNode(node.id); setEditing(null); }, "#E84855", true)}</div>
-          </div> : <div onClick={() => setEditing(node.id)} style={{ cursor: "pointer" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: depth === 0 ? pl.color : "#e0e0e0" }}>{node.name || "..."}</div>
-            {node.cargo && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{node.cargo}</div>}
-          </div>}
-          <button onClick={() => addChild(node.id)} style={{ position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", border: `1px solid ${pl.color}44`, background: "#1a1a2e", color: pl.color, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 }}>+</button>
-        </div>
-        {(node.children||[]).length > 0 && <>
-          <div style={{ width: 2, height: 20, background: "rgba(255,255,255,.1)" }} />
-          <div style={{ display: "flex", gap: 12, position: "relative" }}>
-            {node.children.length > 1 && <div style={{ position: "absolute", top: 0, left: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", right: "calc(50% - " + ((node.children.length - 1) * 66) + "px)", height: 2, background: "rgba(255,255,255,.1)" }} />}
-            {node.children.map(c => <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
-              <RNode node={c} depth={depth + 1} />
-            </div>)}
-          </div>
-        </>}
-      </div>;
-    };
-    return <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-        {["actual", "proyectado"].map(t => <button key={t} onClick={() => setTab(t)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: tab === t ? pl.color + "33" : "rgba(255,255,255,.05)", color: tab === t ? pl.color : "#888", fontFamily: "'DM Sans',sans-serif", textTransform: "capitalize" }}>{t}</button>)}
-      </div>
-      <div style={{ overflowX: "auto", padding: "20px 0" }}>
-        <div style={{ display: "inline-flex", minWidth: "100%" , justifyContent: "center" }}>
-          {tree.nodes.map(n => <RNode key={n.id} node={n} />)}
-        </div>
-      </div>
-      <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>Toca un nodo para editar · + para agregar subordinado</div>
-    </div>;
-  };
-
-  // Roles Editor
-  const RolesEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-data`;
-    const data = getJSON(dk, []);
-    const save = (d) => setJSON(dk, d);
-    const [exp, setExp] = useState(null);
-    const depts = [...new Set(data.map(r => r.dept || "Sin departamento"))];
-    const addRole = () => save([...data, { id: genId(), name: "Nuevo cargo", dept: "General", reporta: "", responsabilidades: [""] }]);
-    const updateRole = (id, field, val) => save(data.map(r => r.id === id ? { ...r, [field]: val } : r));
-    const delRole = (id) => save(data.filter(r => r.id !== id));
-    return <div>
-      {depts.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "#666", fontSize: 13 }}>No hay roles definidos aún</div>}
-      {depts.map(dept => <div key={dept} style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: pl.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8, padding: "4px 0", borderBottom: `1px solid ${pl.color}22` }}>📁 {dept}</div>
-        <div style={{ display: "grid", gap: 8 }}>
-          {data.filter(r => (r.dept || "Sin departamento") === dept).map(r => {
-            const isExp = exp === r.id;
-            return <div key={r.id} style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,.04)", border: `1px solid ${isExp ? pl.color + "44" : "rgba(255,255,255,.06)"}` }}>
-              {isExp ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {Inp(r.name, v => updateRole(r.id, "name", v), "Nombre del cargo")}
-                {Inp(r.dept, v => updateRole(r.id, "dept", v), "Departamento")}
-                {Inp(r.reporta, v => updateRole(r.id, "reporta", v), "Reporta a...")}
-                <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>Responsabilidades:</div>
-                {(r.responsabilidades||[""]).map((resp, idx) => <div key={idx} style={{ display: "flex", gap: 4 }}>
-                  {Inp(resp, v => { const nr = [...(r.responsabilidades||[""])]; nr[idx] = v; updateRole(r.id, "responsabilidades", nr); }, `Responsabilidad ${idx+1}`)}
-                  {idx === (r.responsabilidades||[""]).length - 1 && Btn("+", () => updateRole(r.id, "responsabilidades", [...(r.responsabilidades||[""]), ""]), pl.color, true)}
-                </div>)}
-                <div style={{ display: "flex", gap: 6 }}>{Btn("✓ Cerrar", () => setExp(null), "#4CAF50", true)}{Btn("🗑 Eliminar", () => { delRole(r.id); setExp(null); }, "#E84855", true)}</div>
-              </div> : <div onClick={() => setExp(r.id)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 20 }}>👤</span>
-                <div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div><div style={{ fontSize: 11, color: "#888" }}>{r.reporta ? `Reporta a: ${r.reporta}` : ""} · {(r.responsabilidades||[]).filter(Boolean).length} responsabilidades</div></div>
-                <span style={{ color: "#444" }}>✏️</span>
-              </div>}
-            </div>;
-          })}
-        </div>
-      </div>)}
-      <div style={{ marginTop: 12 }}>{Btn("+ Agregar rol", addRole)}</div>
-    </div>;
-  };
-
-  // Pipeline Editor (Kanban)
-  const PipelineEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-pipeline`;
-    const STAGES = ["Búsqueda", "Filtro CV", "Entrevista", "Prueba técnica", "Oferta", "Contratado"];
-    const STAGE_COLORS = ["#E84855", "#F7B32B", "#2D7DD2", "#6B4C9A", "#45B69C", "#4CAF50"];
-    const data = getJSON(dk, { candidates: [] });
-    const save = (d) => setJSON(dk, d);
-    const addCandidate = () => save({ candidates: [...data.candidates, { id: genId(), name: "Nuevo candidato", cargo: "", stage: 0, notas: "" }] });
-    const updateCand = (id, field, val) => save({ candidates: data.candidates.map(c => c.id === id ? { ...c, [field]: val } : c) });
-    const delCand = (id) => save({ candidates: data.candidates.filter(c => c.id !== id) });
-    const moveCand = (id, dir) => save({ candidates: data.candidates.map(c => c.id === id ? { ...c, stage: Math.max(0, Math.min(STAGES.length - 1, c.stage + dir)) } : c) });
-    const [editId, setEditId] = useState(null);
-    return <div>
-      <div style={{ overflowX: "auto", paddingBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8, minWidth: STAGES.length * 160 }}>
-          {STAGES.map((stage, si) => {
-            const cands = data.candidates.filter(c => c.stage === si);
-            return <div key={si} style={{ flex: 1, minWidth: 150 }}>
-              <div style={{ padding: "8px 10px", borderRadius: "8px 8px 0 0", background: STAGE_COLORS[si] + "22", borderBottom: `2px solid ${STAGE_COLORS[si]}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: STAGE_COLORS[si] }}>{stage}</span>
-                <span style={{ fontSize: 11, color: "#888", background: "rgba(0,0,0,.3)", padding: "2px 6px", borderRadius: 4 }}>{cands.length}</span>
-              </div>
-              <div style={{ minHeight: 80, padding: 6, background: "rgba(0,0,0,.15)", borderRadius: "0 0 8px 8px" }}>
-                {cands.map(c => <div key={c.id} style={{ padding: 8, marginBottom: 6, borderRadius: 8, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)" }}>
-                  {editId === c.id ? <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {Inp(c.name, v => updateCand(c.id, "name", v), "Nombre")}
-                    {Inp(c.cargo, v => updateCand(c.id, "cargo", v), "Cargo postulado")}
-                    {Inp(c.notas, v => updateCand(c.id, "notas", v), "Notas")}
-                    <div style={{ display: "flex", gap: 4 }}>{Btn("✓", () => setEditId(null), "#4CAF50", true)}{Btn("🗑", () => { delCand(c.id); setEditId(null); }, "#E84855", true)}</div>
-                  </div> : <div>
-                    <div onClick={() => setEditId(c.id)} style={{ cursor: "pointer" }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
-                      {c.cargo && <div style={{ fontSize: 11, color: "#888" }}>{c.cargo}</div>}
-                      {c.notas && <div style={{ fontSize: 10, color: "#666", marginTop: 4, fontStyle: "italic" }}>{c.notas}</div>}
-                    </div>
-                    <div style={{ display: "flex", gap: 4, marginTop: 6, justifyContent: "center" }}>
-                      {si > 0 && <button onClick={() => moveCand(c.id, -1)} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,.1)", background: "none", color: "#888", fontSize: 11, cursor: "pointer" }}>←</button>}
-                      {si < STAGES.length - 1 && <button onClick={() => moveCand(c.id, 1)} style={{ padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,.1)", background: "none", color: "#888", fontSize: 11, cursor: "pointer" }}>→</button>}
-                    </div>
-                  </div>}
-                </div>)}
-                {si === 0 && <button onClick={addCandidate} style={{ width: "100%", padding: 6, borderRadius: 6, border: "1px dashed rgba(255,255,255,.15)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>+ Candidato</button>}
-              </div>
-            </div>;
-          })}
-        </div>
-      </div>
-    </div>;
-  };
-
-  // Checklist Editor (Onboarding + SOPs)
-  const ChecklistEditor = ({ pid, ik, variant }) => {
-    const dk = `${pid}-${ik}-${variant === "sops" ? "list" : "checklist"}`;
-    const SOP_STATES = [{ v: "done", l: "✅ Documentado", c: "#4CAF50" }, { v: "progress", l: "🔧 En progreso", c: "#2196F3" }, { v: "missing", l: "⬜ Faltante", c: "#888" }];
-    const defSections = variant === "sops" ? [{ id: genId(), title: "SOPs", items: [] }] : [{ id: genId(), title: "Semana 1", items: [] }, { id: genId(), title: "Semana 2", items: [] }, { id: genId(), title: "Semana 3-4", items: [] }];
-    const data = getJSON(dk, { sections: defSections });
-    const save = (d) => setJSON(dk, d);
-    const addSection = () => save({ sections: [...data.sections, { id: genId(), title: "Nueva sección", items: [] }] });
-    const addItem = (secId) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, items: [...s.items, { id: genId(), text: "", desc: "", done: false, estado: "missing" }] } : s) });
-    const updateItem = (secId, itemId, field, val) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, items: s.items.map(i => i.id === itemId ? { ...i, [field]: val } : i) } : s) });
-    const delItem = (secId, itemId) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, items: s.items.filter(i => i.id !== itemId) } : s) });
-    const renameSection = (secId, title) => save({ sections: data.sections.map(s => s.id === secId ? { ...s, title } : s) });
-    const totalItems = data.sections.reduce((a, s) => a + s.items.length, 0);
-    const doneItems = data.sections.reduce((a, s) => a + s.items.filter(i => variant === "sops" ? i.estado === "done" : i.done).length, 0);
-    return <div>
-      {totalItems > 0 && <div style={{ marginBottom: 12, fontSize: 12, color: "#888" }}>{doneItems}/{totalItems} completados
-        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,.06)", marginTop: 6, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pl.color, width: `${totalItems ? (doneItems/totalItems)*100 : 0}%`, transition: "width .3s" }} /></div>
-      </div>}
-      {data.sections.map(sec => <div key={sec.id} style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          {Inp(sec.title, v => renameSection(sec.id, v), "Sección", { fontSize: 14, fontWeight: 700, background: "transparent", border: "none", borderBottom: "1px solid rgba(255,255,255,.1)", borderRadius: 0, padding: "4px 0", width: "auto", flex: 1 })}
-        </div>
-        {sec.items.map(item => <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, padding: "8px 10px", borderRadius: 8, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
-          {variant === "sops" ? <select value={item.estado || "missing"} onChange={e => updateItem(sec.id, item.id, "estado", e.target.value)} style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: SOP_STATES.find(s => s.v === (item.estado||"missing"))?.c || "#888", fontSize: 11, fontFamily: "'DM Sans',sans-serif", cursor: "pointer" }}>
-            {SOP_STATES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}
-          </select> : <input type="checkbox" checked={item.done} onChange={e => updateItem(sec.id, item.id, "done", e.target.checked)} style={{ marginTop: 4, accentColor: pl.color, cursor: "pointer" }} />}
-          <div style={{ flex: 1 }}>
-            {Inp(item.text, v => updateItem(sec.id, item.id, "text", v), variant === "sops" ? "Nombre del SOP" : "Tarea", { fontSize: 13, marginBottom: 4, textDecoration: item.done && variant !== "sops" ? "line-through" : "none", opacity: item.done && variant !== "sops" ? 0.5 : 1 })}
-            {Inp(item.desc, v => updateItem(sec.id, item.id, "desc", v), variant === "sops" ? "Área / notas" : "Descripción", { fontSize: 11, color: "#888" })}
-          </div>
-          <button onClick={() => delItem(sec.id, item.id)} style={{ background: "none", border: "none", color: "#555", fontSize: 12, cursor: "pointer", padding: 4 }}>✕</button>
-        </div>)}
-        <button onClick={() => addItem(sec.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px dashed rgba(255,255,255,.12)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", marginTop: 4 }}>+ {variant === "sops" ? "SOP" : "Tarea"}</button>
-      </div>)}
-      <div style={{ marginTop: 8 }}>{Btn("+ Sección", addSection)}</div>
-    </div>;
-  };
-
-  // Scorecard Editor
-  const ScorecardEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-scorecard`;
-    const data = getJSON(dk, { frecuencia: "Trimestral", formato: "1-5", roles: [] });
-    const save = (d) => setJSON(dk, d);
-    const addRole = () => save({ ...data, roles: [...data.roles, { id: genId(), name: "Nuevo rol", metricas: [{ id: genId(), kpi: "", meta: "", peso: "" }] }] });
-    const updateRole = (rid, field, val) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, [field]: val } : r) });
-    const delRole = (rid) => save({ ...data, roles: data.roles.filter(r => r.id !== rid) });
-    const addMetric = (rid) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, metricas: [...r.metricas, { id: genId(), kpi: "", meta: "", peso: "" }] } : r) });
-    const updateMetric = (rid, mid, field, val) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, metricas: r.metricas.map(m => m.id === mid ? { ...m, [field]: val } : m) } : r) });
-    const delMetric = (rid, mid) => save({ ...data, roles: data.roles.map(r => r.id === rid ? { ...r, metricas: r.metricas.filter(m => m.id !== mid) } : r) });
-    return <div>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Frecuencia</div>
-          <select value={data.frecuencia} onChange={e => save({ ...data, frecuencia: e.target.value })} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", width: "100%", cursor: "pointer" }}>
-            {["Mensual", "Trimestral", "Semestral", "Anual"].map(f => <option key={f} value={f}>{f}</option>)}
-          </select></div>
-        <div style={{ flex: 1, minWidth: 150 }}><div style={{ fontSize: 11, color: "#888", marginBottom: 4 }}>Escala</div>
-          <select value={data.formato} onChange={e => save({ ...data, formato: e.target.value })} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", width: "100%", cursor: "pointer" }}>
-            {["1-5", "1-10", "Porcentaje"].map(f => <option key={f} value={f}>{f}</option>)}
-          </select></div>
-      </div>
-      {data.roles.map(role => <div key={role.id} style={{ marginBottom: 16, padding: 12, borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: 16 }}>👤</span>
-          {Inp(role.name, v => updateRole(role.id, "name", v), "Nombre del rol", { flex: 1, fontWeight: 700 })}
-          <button onClick={() => delRole(role.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 4, fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4, padding: "0 4px" }}><span>KPI</span><span>Meta</span><span>Peso</span><span></span></div>
-        {role.metricas.map(m => <div key={m.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 4, marginBottom: 4 }}>
-          {Inp(m.kpi, v => updateMetric(role.id, m.id, "kpi", v), "Indicador")}
-          {Inp(m.meta, v => updateMetric(role.id, m.id, "meta", v), "Meta")}
-          {Inp(m.peso, v => updateMetric(role.id, m.id, "peso", v), "%")}
-          <button onClick={() => delMetric(role.id, m.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
-        </div>)}
-        <button onClick={() => addMetric(role.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px dashed rgba(255,255,255,.12)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", marginTop: 4 }}>+ Métrica</button>
-      </div>)}
-      <div style={{ marginTop: 8 }}>{Btn("+ Agregar rol", addRole)}</div>
-    </div>;
-  };
-
-  // Cards Editor (Cultura)
-  const CardsEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-cards`;
-    const ICONS = ["🎯", "💡", "🤝", "🔥", "⭐", "🎉", "🏆", "💪", "🌟", "❤️", "🚀", "🎨"];
-    const data = getJSON(dk, []);
-    const save = (d) => setJSON(dk, d);
-    const addCard = () => save([...data, { id: genId(), title: "", desc: "", icon: ICONS[data.length % ICONS.length] }]);
-    const updateCard = (id, field, val) => save(data.map(c => c.id === id ? { ...c, [field]: val } : c));
-    const delCard = (id) => save(data.filter(c => c.id !== id));
-    return <div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        {data.map(card => <div key={card.id} style={{ padding: 14, borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.08)", position: "relative" }}>
-          <button onClick={() => delCard(card.id)} style={{ position: "absolute", top: 6, right: 8, background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
-          <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-            {ICONS.slice(0, 6).map(ic => <span key={ic} onClick={() => updateCard(card.id, "icon", ic)} style={{ cursor: "pointer", fontSize: 16, opacity: card.icon === ic ? 1 : 0.3, transition: "opacity .2s" }}>{ic}</span>)}
-          </div>
-          {Inp(card.title, v => updateCard(card.id, "title", v), "Título", { fontWeight: 700, marginBottom: 6 })}
-          <textarea value={card.desc} onChange={e => updateCard(card.id, "desc", e.target.value)} placeholder="Descripción..." style={{ width: "100%", minHeight: 60, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.2)", color: "#ccc", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
-        </div>)}
-      </div>
-      <div style={{ marginTop: 12 }}>{Btn("+ Agregar tarjeta", addCard)}</div>
-    </div>;
-  };
-
-  // ProcessFlow Editor
-  const ProcessFlowEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-flow`;
-    const data = getJSON(dk, { flows: [] });
-    const save = (d) => setJSON(dk, d);
-    const addFlow = () => save({ flows: [...data.flows, { id: genId(), name: "Nuevo flujo", steps: [{ id: genId(), name: "Paso 1", desc: "" }] }] });
-    const updateFlow = (fid, field, val) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, [field]: val } : f) });
-    const delFlow = (fid) => save({ flows: data.flows.filter(f => f.id !== fid) });
-    const addStep = (fid) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, steps: [...f.steps, { id: genId(), name: "Nuevo paso", desc: "" }] } : f) });
-    const updateStep = (fid, sid, field, val) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, steps: f.steps.map(s => s.id === sid ? { ...s, [field]: val } : s) } : f) });
-    const delStep = (fid, sid) => save({ flows: data.flows.map(f => f.id === fid ? { ...f, steps: f.steps.filter(s => s.id !== sid) } : f) });
-    return <div>
-      {data.flows.map(flow => <div key={flow.id} style={{ marginBottom: 16, padding: 12, borderRadius: 12, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-          {Inp(flow.name, v => updateFlow(flow.id, "name", v), "Nombre del flujo", { fontWeight: 700, fontSize: 14, flex: 1 })}
-          <button onClick={() => delFlow(flow.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
-        </div>
-        <div style={{ overflowX: "auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 0, minWidth: "fit-content" }}>
-            {flow.steps.map((step, si) => <div key={step.id} style={{ display: "flex", alignItems: "center" }}>
-              <div style={{ minWidth: 130, padding: 10, borderRadius: 10, background: `${pl.color}${(15 + si * 8).toString(16).padStart(2, "0")}`, border: `1px solid ${pl.color}33`, position: "relative" }}>
-                {Inp(step.name, v => updateStep(flow.id, step.id, "name", v), "Paso", { fontWeight: 600, fontSize: 12, background: "transparent", border: "none", padding: "2px 0" })}
-                {Inp(step.desc, v => updateStep(flow.id, step.id, "desc", v), "Detalle", { fontSize: 10, color: "#888", background: "transparent", border: "none", padding: "2px 0" })}
-                {flow.steps.length > 1 && <button onClick={() => delStep(flow.id, step.id)} style={{ position: "absolute", top: 2, right: 4, background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 10 }}>✕</button>}
-              </div>
-              {si < flow.steps.length - 1 && <span style={{ color: pl.color, fontSize: 18, padding: "0 4px", flexShrink: 0 }}>→</span>}
-            </div>)}
-            <button onClick={() => addStep(flow.id)} style={{ marginLeft: 8, width: 32, height: 32, borderRadius: "50%", border: `1px dashed ${pl.color}44`, background: "none", color: pl.color, fontSize: 16, cursor: "pointer", flexShrink: 0 }}>+</button>
-          </div>
-        </div>
-      </div>)}
-      <div style={{ marginTop: 8 }}>{Btn("+ Agregar flujo", addFlow)}</div>
-    </div>;
-  };
-
-  // Standards Editor (Control de Calidad)
-  const StandardsEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-standards`;
-    const data = getJSON(dk, []);
-    const save = (d) => setJSON(dk, d);
-    const addStd = () => save([...data, { id: genId(), name: "", desc: "", nivel: 0, inspecciones: "" }]);
-    const updateStd = (id, field, val) => save(data.map(s => s.id === id ? { ...s, [field]: val } : s));
-    const delStd = (id) => save(data.filter(s => s.id !== id));
-    const getColor = (n) => n < 40 ? "#E84855" : n < 70 ? "#F7B32B" : "#4CAF50";
-    return <div>
-      {data.map(std => <div key={std.id} style={{ marginBottom: 10, padding: 12, borderRadius: 10, background: "rgba(255,255,255,.03)", border: `1px solid ${getColor(std.nivel)}22` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          {Inp(std.name, v => updateStd(std.id, "name", v), "Nombre del estándar", { flex: 1, fontWeight: 600 })}
-          <button onClick={() => delStd(std.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
-        </div>
-        {Inp(std.desc, v => updateStd(std.id, "desc", v), "Descripción / norma aplicable")}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
-          <span style={{ fontSize: 11, color: "#888", flexShrink: 0 }}>Cumplimiento:</span>
-          <input type="range" min={0} max={100} value={std.nivel} onChange={e => updateStd(std.id, "nivel", parseInt(e.target.value))} style={{ flex: 1, accentColor: getColor(std.nivel) }} />
-          <span style={{ fontSize: 14, fontWeight: 700, color: getColor(std.nivel), minWidth: 40, textAlign: "right" }}>{std.nivel}%</span>
-        </div>
-        {Inp(std.inspecciones, v => updateStd(std.id, "inspecciones", v), "Puntos de inspección", { marginTop: 6, fontSize: 11 })}
-      </div>)}
-      <div style={{ marginTop: 8 }}>{Btn("+ Agregar estándar", addStd)}</div>
-    </div>;
-  };
-
-  // Suppliers Editor
-  const SuppliersEditor = ({ pid, ik }) => {
-    const dk = `${pid}-${ik}-list`;
-    const data = getJSON(dk, []);
-    const save = (d) => setJSON(dk, d);
-    const addSup = () => save([...data, { id: genId(), name: "", rubro: "", contacto: "", rating: 3, notas: "" }]);
-    const updateSup = (id, field, val) => save(data.map(s => s.id === id ? { ...s, [field]: val } : s));
-    const delSup = (id) => save(data.filter(s => s.id !== id));
-    const sorted = [...data].sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    return <div>
-      {sorted.map(sup => <div key={sup.id} style={{ marginBottom: 10, padding: 12, borderRadius: 10, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.06)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 18 }}>🏭</span>
-          {Inp(sup.name, v => updateSup(sup.id, "name", v), "Nombre del proveedor", { flex: 1, fontWeight: 600 })}
-          <button onClick={() => delSup(sup.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
-          {Inp(sup.rubro, v => updateSup(sup.id, "rubro", v), "Rubro / categoría")}
-          {Inp(sup.contacto, v => updateSup(sup.id, "contacto", v), "Contacto")}
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-          <span style={{ fontSize: 11, color: "#888" }}>Evaluación:</span>
-          {[1, 2, 3, 4, 5].map(n => <span key={n} onClick={() => updateSup(sup.id, "rating", n)} style={{ cursor: "pointer", fontSize: 18, opacity: n <= (sup.rating || 0) ? 1 : 0.2, transition: "opacity .2s" }}>⭐</span>)}
-        </div>
-        {Inp(sup.notas, v => updateSup(sup.id, "notas", v), "Notas")}
-      </div>)}
-      <div style={{ marginTop: 8 }}>{Btn("+ Agregar proveedor", addSup)}</div>
-    </div>;
-  };
+  // ─── VISUAL EDITORS (defined outside App to preserve state) ───
 
   // ─── DETAIL VIEW ───
   if (vw === "detail" && pl && it) {
@@ -827,15 +836,15 @@ export default function App() {
 
     if (isVisual) {
       return <DetailWrap>
-        {tplType === "orgchart" && <OrgChartEditor pid={pl.id} ik={it.key} />}
-        {tplType === "roles" && <RolesEditor pid={pl.id} ik={it.key} />}
-        {tplType === "pipeline" && <PipelineEditor pid={pl.id} ik={it.key} />}
-        {tplType === "checklist" && <ChecklistEditor pid={pl.id} ik={it.key} variant={it.template.variant} />}
-        {tplType === "scorecard" && <ScorecardEditor pid={pl.id} ik={it.key} />}
-        {tplType === "cards" && <CardsEditor pid={pl.id} ik={it.key} />}
-        {tplType === "processflow" && <ProcessFlowEditor pid={pl.id} ik={it.key} />}
-        {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} />}
-        {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} />}
+        {tplType === "orgchart" && <OrgChartEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "roles" && <RolesEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "pipeline" && <PipelineEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "checklist" && <ChecklistEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} variant={it.template.variant} />}
+        {tplType === "scorecard" && <ScorecardEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "cards" && <CardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "processflow" && <ProcessFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
       </DetailWrap>;
     }
 
