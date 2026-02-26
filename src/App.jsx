@@ -820,7 +820,7 @@ export default function App() {
     const cs = st[`${pl.id}-${it.key}`] || "none";
     const tplType = it.template?.type || "text";
     const isVisual = tplType !== "text";
-    const DetailWrap = ({ children }) => <div style={S}>{F}{TabBar}<Badge />
+    const detailHeader = <>{F}{TabBar}<Badge />
       <div style={{ padding: 20, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
         {Bk(pl.name, () => { setVw("pillar"); setAi(null); })}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 24 }}>{pl.icon}</span><div><h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: pl.color }}>{it.label}</h1><p style={{ margin: "2px 0 0", fontSize: 13, color: "#888" }}>{it.desc}</p></div></div>
@@ -831,37 +831,40 @@ export default function App() {
           {STATUS_OPTIONS.map(o => <button key={o.value} onClick={() => uSt(pl.id, it.key, o.value)} style={{ padding: "8px 14px", borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", border: cs === o.value ? `2px solid ${pl.color}` : "2px solid transparent", background: cs === o.value ? o.bg : "rgba(255,255,255,.04)", color: cs === o.value ? o.text : "#666" }}>{o.emoji} {o.label}</button>)}
         </div>
       </div>
-      <div style={{ padding: "16px 20px 40px" }}>{children}</div>
-    </div>;
+    </>;
 
     if (isVisual) {
-      return <DetailWrap>
-        {tplType === "orgchart" && <OrgChartEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "roles" && <RolesEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "pipeline" && <PipelineEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "checklist" && <ChecklistEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} variant={it.template.variant} />}
-        {tplType === "scorecard" && <ScorecardEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "cards" && <CardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "processflow" && <ProcessFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-        {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
-      </DetailWrap>;
+      return <div style={S}>{detailHeader}
+        <div style={{ padding: "16px 20px 40px" }}>
+          {tplType === "orgchart" && <OrgChartEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "roles" && <RolesEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "pipeline" && <PipelineEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "checklist" && <ChecklistEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} variant={it.template.variant} />}
+          {tplType === "scorecard" && <ScorecardEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "cards" && <CardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "processflow" && <ProcessFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+        </div>
+      </div>;
     }
 
     // Original textarea-based detail view for text type
-    return <DetailWrap>
-      <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Desarrollo · {fSec(pl.id, it.key, it.template)}/{fSecTotal(it.template)}</div>
-      <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,.06)", marginBottom: 20, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pl.color, transition: "width .4s", width: `${fSecTotal(it.template) ? (fSec(pl.id, it.key, it.template) / fSecTotal(it.template)) * 100 : 0}%` }} /></div>
-      {it.template.sections.map((sec, i) => {
-        const v = ct[`${pl.id}-${it.key}-${sec.key}`] || ""; const fl = v.trim().length > 0;
-        return <div key={sec.key} style={{ marginBottom: 16 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 8, color: fl ? "#e0e0e0" : "#999" }}>
-            <span style={{ width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: fl ? pl.color + "33" : "rgba(255,255,255,.06)", color: fl ? pl.color : "#555" }}>{fl ? "✓" : i + 1}</span>{sec.label}
-          </label>
-          <textarea value={v} onChange={e => uCt(pl.id, it.key, sec.key, e.target.value)} placeholder={sec.placeholder} style={{ width: "100%", minHeight: 90, padding: "12px 14px", borderRadius: 10, border: `1px solid ${fl ? pl.color + "33" : "rgba(255,255,255,.08)"}`, background: "rgba(0,0,0,.25)", color: "#e0e0e0", fontSize: 13, lineHeight: 1.5, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = pl.color + "88"} onBlur={e => e.target.style.borderColor = fl ? pl.color + "33" : "rgba(255,255,255,.08)"} />
-        </div>;
-      })}
-    </DetailWrap>;
+    return <div style={S}>{detailHeader}
+      <div style={{ padding: "16px 20px 40px" }}>
+        <div style={{ fontSize: 11, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 12 }}>Desarrollo · {fSec(pl.id, it.key, it.template)}/{fSecTotal(it.template)}</div>
+        <div style={{ height: 4, borderRadius: 2, background: "rgba(255,255,255,.06)", marginBottom: 20, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pl.color, transition: "width .4s", width: `${fSecTotal(it.template) ? (fSec(pl.id, it.key, it.template) / fSecTotal(it.template)) * 100 : 0}%` }} /></div>
+        {it.template.sections.map((sec, i) => {
+          const v = ct[`${pl.id}-${it.key}-${sec.key}`] || ""; const fl = v.trim().length > 0;
+          return <div key={sec.key} style={{ marginBottom: 16 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 8, color: fl ? "#e0e0e0" : "#999" }}>
+              <span style={{ width: 22, height: 22, borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, background: fl ? pl.color + "33" : "rgba(255,255,255,.06)", color: fl ? pl.color : "#555" }}>{fl ? "✓" : i + 1}</span>{sec.label}
+            </label>
+            <textarea value={v} onChange={e => uCt(pl.id, it.key, sec.key, e.target.value)} placeholder={sec.placeholder} style={{ width: "100%", minHeight: 90, padding: "12px 14px", borderRadius: 10, border: `1px solid ${fl ? pl.color + "33" : "rgba(255,255,255,.08)"}`, background: "rgba(0,0,0,.25)", color: "#e0e0e0", fontSize: 13, lineHeight: 1.5, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} onFocus={e => e.target.style.borderColor = pl.color + "88"} onBlur={e => e.target.style.borderColor = fl ? pl.color + "33" : "rgba(255,255,255,.08)"} />
+          </div>;
+        })}
+      </div>
+    </div>;
   }
 
   // PILLAR VIEW
