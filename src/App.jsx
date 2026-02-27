@@ -388,41 +388,79 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
   const editNode = (id, field, val) => save({ nodes: updateNode(tree.nodes, id, n => ({ ...n, [field]: val })) });
   const delNode = (id) => save({ nodes: removeNode(tree.nodes, id) });
   const [editing, setEditing] = useState(null);
+  const [moving, setMoving] = useState(null);
+  const [hoverTarget, setHoverTarget] = useState(null);
   const switchTab = (t) => {
     if (t === "proyectado" && !getJSON(projKey, null)) {
       setJSON(projKey, actualTree);
     }
     setTab(t);
   };
-  const renderNode = (node, depth) => {
+  const findNode = (nodes, id) => { for (const n of nodes) { if (n.id === id) return n; const f = findNode(n.children || [], id); if (f) return f; } return null; };
+  const isDescendant = (nodes, ancestorId, targetId) => { const find = (ns) => { for (const n of ns) { if (n.id === ancestorId) { const chk = (cs) => cs.some(c => c.id === targetId || chk(c.children || [])); return chk(n.children || []); } const r = find(n.children || []); if (r) return r; } return false; }; return find(nodes); };
+  const moveNode = (nodeId, newParentId) => {
+    if (nodeId === newParentId || isDescendant(tree.nodes, nodeId, newParentId)) return;
+    const nodeCopy = JSON.parse(JSON.stringify(findNode(tree.nodes, nodeId)));
+    const cleaned = removeNode(tree.nodes, nodeId);
+    const updated = updateNode(cleaned, newParentId, p => ({ ...p, children: [...(p.children || []), nodeCopy] }));
+    save({ nodes: updated }); setMoving(null); setHoverTarget(null);
+  };
+  const groupChildren = (children) => {
+    const groups = [], map = {};
+    for (const c of children) {
+      if (c.cargo && map[c.cargo] !== undefined) { groups[map[c.cargo]].nodes.push(c); }
+      else { if (c.cargo) map[c.cargo] = groups.length; groups.push({ cargo: c.cargo || null, nodes: [c] }); }
+    }
+    return groups;
+  };
+  const renderNode = (node, depth, inGroup = false) => {
     const isEdit = editing === node.id;
-    return <div key={node.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 120 }}>
-      <div style={{ padding: "10px 14px", borderRadius: 10, background: depth === 0 ? `${color}22` : "rgba(255,255,255,.05)", border: `1px solid ${depth === 0 ? color + "55" : "rgba(255,255,255,.08)"}`, minWidth: 100, textAlign: "center", position: "relative" }}>
+    const isMoving = moving === node.id;
+    const isValidTarget = moving && !isMoving && !isDescendant(tree.nodes, moving, node.id);
+    const isInvalid = moving && (isMoving || isDescendant(tree.nodes, moving, node.id));
+    const isHover = hoverTarget === node.id;
+    return <div key={node.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: inGroup ? 90 : 120 }}>
+      <div
+        onMouseEnter={isValidTarget ? () => setHoverTarget(node.id) : undefined}
+        onMouseLeave={isValidTarget ? () => setHoverTarget(null) : undefined}
+        style={{ padding: "10px 14px", borderRadius: 10,
+          background: isMoving ? "rgba(45,125,210,.15)" : depth === 0 ? `${color}22` : (isValidTarget && isHover) ? "rgba(76,175,80,.1)" : "rgba(255,255,255,.05)",
+          border: isMoving ? "2px solid #2D7DD2" : (isValidTarget && isHover) ? "2px dashed #4CAF50" : `1px solid ${depth === 0 ? color + "55" : "rgba(255,255,255,.08)"}`,
+          minWidth: inGroup ? 80 : 100, textAlign: "center", position: "relative",
+          opacity: isInvalid && !isMoving ? 0.4 : 1, cursor: isValidTarget ? "pointer" : undefined,
+          transition: "border-color .15s, opacity .15s, background .15s" }}>
         {isEdit ? <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {VInp(node.name, v => editNode(node.id, "name", v), "Nombre")}
           {VInp(node.cargo, v => editNode(node.id, "cargo", v), "Cargo")}
-          <div style={{ display: "flex", gap: 4, justifyContent: "center" }}>{VBtn("✓", () => setEditing(null), "#4CAF50", true)}{node.id !== "root" && VBtn("🗑", () => { delNode(node.id); setEditing(null); }, "#E84855", true)}</div>
-        </div> : <div onClick={() => setEditing(node.id)} style={{ cursor: "pointer" }}>
+          <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>{VBtn("✓", () => setEditing(null), "#4CAF50", true)}{node.id !== "root" && VBtn("↗ Mover", () => { setMoving(node.id); setEditing(null); }, "#2D7DD2", true)}{node.id !== "root" && VBtn("🗑", () => { delNode(node.id); setEditing(null); }, "#E84855", true)}</div>
+        </div> : <div onClick={() => { if (moving && isValidTarget) { moveNode(moving, node.id); } else if (!moving) { setEditing(node.id); } }} style={{ cursor: isValidTarget ? "pointer" : (!moving ? "pointer" : "default") }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: depth === 0 ? color : "#e0e0e0" }}>{node.name || "..."}</div>
-          {node.cargo && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{node.cargo}</div>}
+          {node.cargo && !inGroup && <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>{node.cargo}</div>}
         </div>}
-        <button onClick={() => addChild(node.id)} style={{ position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", border: `1px solid ${color}44`, background: "#1a1a2e", color: color, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 }}>+</button>
+        {!moving && <button onClick={() => addChild(node.id)} style={{ position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)", width: 20, height: 20, borderRadius: "50%", border: `1px solid ${color}44`, background: "#1a1a2e", color: color, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1, padding: 0 }}>+</button>}
       </div>
-      {(node.children||[]).length > 0 && <>
-        <div style={{ width: 2, height: 20, background: "rgba(255,255,255,.1)" }} />
-        <div style={{ display: "flex", position: "relative" }}>
-          {node.children.map((c, idx) => {
-            const only = node.children.length === 1;
-            const first = idx === 0;
-            const last = idx === node.children.length - 1;
-            return <div key={c.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", padding: "0 6px" }}>
-              {!only && <div style={{ position: "absolute", top: 0, left: first ? "50%" : 0, right: last ? "50%" : 0, height: 2, background: "rgba(255,255,255,.1)" }} />}
-              <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
-              {renderNode(c, depth + 1)}
-            </div>;
-          })}
-        </div>
-      </>}
+      {(node.children||[]).length > 0 && (() => {
+        const groups = groupChildren(node.children);
+        return <>
+          <div style={{ width: 2, height: 20, background: "rgba(255,255,255,.1)" }} />
+          <div style={{ display: "flex", position: "relative" }}>
+            {groups.map((g, gIdx) => {
+              const onlyG = groups.length === 1;
+              const firstG = gIdx === 0;
+              const lastG = gIdx === groups.length - 1;
+              const multi = g.cargo && g.nodes.length > 1;
+              return <div key={multi ? "g-" + g.cargo : g.nodes[0].id} style={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative", padding: "0 6px" }}>
+                {!onlyG && <div style={{ position: "absolute", top: 0, left: firstG ? "50%" : 0, right: lastG ? "50%" : 0, height: 2, background: "rgba(255,255,255,.1)" }} />}
+                <div style={{ width: 2, height: 16, background: "rgba(255,255,255,.1)" }} />
+                {multi ? <div style={{ border: `1px dashed ${color}44`, borderRadius: 12, padding: "8px 8px 4px", background: `${color}08` }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: color, textTransform: "uppercase", letterSpacing: .5, textAlign: "center", marginBottom: 6, opacity: .7 }}>{g.cargo}</div>
+                  <div style={{ display: "flex", gap: 8 }}>{g.nodes.map(c => renderNode(c, depth + 1, true))}</div>
+                </div> : renderNode(g.nodes[0], depth + 1, false)}
+              </div>;
+            })}
+          </div>
+        </>;
+      })()}
     </div>;
   };
   return <div>
@@ -430,12 +468,16 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
       {["actual", "proyectado"].map(t => <button key={t} onClick={() => switchTab(t)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: tab === t ? color + "33" : "rgba(255,255,255,.05)", color: tab === t ? color : "#888", fontFamily: "'DM Sans',sans-serif", textTransform: "capitalize" }}>{t}</button>)}
       {tab === "proyectado" && <div style={{ marginLeft: "auto" }}>{VBtn("↩ Resetear desde actual", () => { if (window.confirm("¿Reemplazar organigrama proyectado con el actual?")) setJSON(projKey, actualTree); }, "#E84855", true)}</div>}
     </div>
+    {moving && (() => { const mn = findNode(tree.nodes, moving); return <div style={{ padding: "10px 16px", borderRadius: 10, marginBottom: 12, background: "rgba(45,125,210,.12)", border: "1px solid rgba(45,125,210,.3)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, color: "#e0e0e0" }}>
+      <span>Selecciona nuevo padre para <strong>{mn?.name || "..."}</strong></span>
+      {VBtn("Cancelar", () => { setMoving(null); setHoverTarget(null); }, "#E84855", true)}
+    </div>; })()}
     <div style={{ overflowX: "auto", padding: "20px 0" }}>
       <div style={{ display: "inline-flex", minWidth: "100%", justifyContent: "center" }}>
         {tree.nodes.map(n => renderNode(n, 0))}
       </div>
     </div>
-    <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>Toca un nodo para editar · + para agregar subordinado</div>
+    <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>{moving ? "Clic en un nodo válido para mover · Nodos atenuados no son válidos" : "Toca un nodo para editar · + para agregar subordinado"}</div>
   </div>;
 }
 
