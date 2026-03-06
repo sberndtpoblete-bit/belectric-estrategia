@@ -762,6 +762,9 @@ function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
   ]};
   const data = getJSON(dk, defaultData);
   const save = (d) => setJSON(dk, d);
+  const containerRef = useRef(null);
+  const autoResizeAll = () => { if (containerRef.current) containerRef.current.querySelectorAll("textarea").forEach(el => { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }); };
+  useEffect(() => { autoResizeAll(); });
   const [collapsed, setCollapsed] = useState({});
   const toggleCollapse = (pid2) => setCollapsed(p => ({ ...p, [pid2]: !p[pid2] }));
   const addPhase = () => save({ phases: [...data.phases, { id: genId(), name: "Nueva fase", subtitle: "", columns: ["Paso", "Qué", "Responsable"], steps: [], checkpoints: [] }] });
@@ -777,7 +780,7 @@ function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
   const renameColumn = (phaseId, ci, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.map((c, i) => i === ci ? val : c) } : p) });
   const delColumn = (phaseId, ci) => { if (window.confirm("¿Eliminar esta columna y sus datos?")) save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.filter((_, i) => i !== ci), steps: p.steps.map(s => ({ ...s, values: s.values.filter((_, i) => i !== ci) })) } : p) }); };
   const TS = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,.06)", background: "transparent", color: "#e0e0e0", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "none", outline: "none", boxSizing: "border-box", minHeight: 32, overflow: "hidden" };
-  return <div>
+  return <div ref={containerRef}>
     {data.phases.map((phase, pi) => <div key={phase.id} style={{ marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, background: `${color}22`, borderLeft: `4px solid ${color}`, marginBottom: collapsed[phase.id] ? 0 : 12 }}>
         <div style={{ flex: 1 }}>
@@ -805,7 +808,7 @@ function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
             <tbody>{phase.steps.map((step, si) => <tr key={step.id} style={{ background: si % 2 === 0 ? "transparent" : "rgba(255,255,255,.02)" }}>
               <td style={{ padding: "6px 10px", borderBottom: "1px solid rgba(255,255,255,.05)", color: "#555", fontSize: 11, fontWeight: 600 }}>{si + 1}</td>
               {step.values.map((val, ci) => <td key={ci} style={{ padding: "4px 6px", borderBottom: "1px solid rgba(255,255,255,.05)" }}>
-                <textarea value={val} onChange={e => updateStepVal(phase.id, step.id, ci, e.target.value)} placeholder="..." ref={el => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }} style={TS} />
+                <textarea value={val} onChange={e => updateStepVal(phase.id, step.id, ci, e.target.value)} placeholder="..." style={TS} />
               </td>)}
               <td style={{ padding: "4px 6px", borderBottom: "1px solid rgba(255,255,255,.05)", textAlign: "center" }}>
                 <button onClick={() => delStep(phase.id, step.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
@@ -822,7 +825,7 @@ function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
             {VInp(cp.title, v => updateCheckpoint(phase.id, cp.id, "title", v), "Título del checkpoint", { fontWeight: 700, fontSize: 13, flex: 1, background: "transparent", border: "none", padding: "2px 0", color: "#E84855" })}
             <button onClick={() => delCheckpoint(phase.id, cp.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
           </div>
-          <textarea value={cp.text} onChange={e => updateCheckpoint(phase.id, cp.id, "text", e.target.value)} placeholder="Descripción del punto de control..." ref={el => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }} style={{ width: "100%", minHeight: 50, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(232,72,85,.15)", background: "rgba(0,0,0,.15)", color: "#ccc", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "none", outline: "none", boxSizing: "border-box", overflow: "hidden" }} />
+          <textarea value={cp.text} onChange={e => updateCheckpoint(phase.id, cp.id, "text", e.target.value)} placeholder="Descripción del punto de control..." style={{ width: "100%", minHeight: 50, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(232,72,85,.15)", background: "rgba(0,0,0,.15)", color: "#ccc", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "none", outline: "none", boxSizing: "border-box", overflow: "hidden" }} />
         </div>)}
         <div style={{ marginBottom: 8 }}>
           <button onClick={() => addCheckpoint(phase.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px dashed rgba(232,72,85,.2)", background: "none", color: "#E84855", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>+ Punto de control</button>
