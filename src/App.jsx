@@ -769,13 +769,13 @@ function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
   const delPhase = (phaseId) => { if (window.confirm("¿Eliminar esta fase?")) save({ phases: data.phases.filter(p => p.id !== phaseId) }); };
   const addStep = (phaseId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: [...p.steps, { id: genId(), values: p.columns.map(() => "") }] } : p) });
   const updateStepVal = (phaseId, stepId, ci, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, values: s.values.map((v, i) => i === ci ? val : v) } : s) } : p) });
-  const delStep = (phaseId, stepId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.filter(s => s.id !== stepId) } : p) });
+  const delStep = (phaseId, stepId) => { if (window.confirm("¿Eliminar esta fila?")) save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.filter(s => s.id !== stepId) } : p) }); };
   const addCheckpoint = (phaseId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: [...p.checkpoints, { id: genId(), title: "Nuevo punto de control", text: "" }] } : p) });
   const updateCheckpoint = (phaseId, cpId, field, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: p.checkpoints.map(c => c.id === cpId ? { ...c, [field]: val } : c) } : p) });
-  const delCheckpoint = (phaseId, cpId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: p.checkpoints.filter(c => c.id !== cpId) } : p) });
+  const delCheckpoint = (phaseId, cpId) => { if (window.confirm("¿Eliminar este punto de control?")) save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: p.checkpoints.filter(c => c.id !== cpId) } : p) }); };
   const addColumn = (phaseId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: [...p.columns, "Nueva columna"], steps: p.steps.map(s => ({ ...s, values: [...s.values, ""] })) } : p) });
   const renameColumn = (phaseId, ci, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.map((c, i) => i === ci ? val : c) } : p) });
-  const delColumn = (phaseId, ci) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.filter((_, i) => i !== ci), steps: p.steps.map(s => ({ ...s, values: s.values.filter((_, i) => i !== ci) })) } : p) });
+  const delColumn = (phaseId, ci) => { if (window.confirm("¿Eliminar esta columna y sus datos?")) save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.filter((_, i) => i !== ci), steps: p.steps.map(s => ({ ...s, values: s.values.filter((_, i) => i !== ci) })) } : p) }); };
   const TS = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,.06)", background: "transparent", color: "#e0e0e0", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box", minHeight: 32 };
   return <div>
     {data.phases.map((phase, pi) => <div key={phase.id} style={{ marginBottom: 20 }}>
@@ -829,7 +829,10 @@ function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
         </div>
       </>}
     </div>)}
-    <div style={{ marginTop: 12 }}>{VBtn("+ Agregar fase", addPhase, color)}</div>
+    <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+      {VBtn("+ Agregar fase", addPhase, color)}
+      {VBtn("↩ Restaurar datos originales", () => { if (window.confirm("¿Restaurar todas las fases al contenido original? Se perderán los cambios actuales.")) save(defaultData); }, "#E84855", true)}
+    </div>
   </div>;
 }
 
