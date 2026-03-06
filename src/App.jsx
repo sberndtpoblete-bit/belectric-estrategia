@@ -241,7 +241,6 @@ const PILLARS = [
       { key: "sops", label: "SOPs", desc: "Procedimientos estándar", template: { type: "checklist", dataKey: "list", variant: "sops" }},
       { key: "calidadCtrl", label: "Control de calidad", desc: "Estándares", template: { type: "standards", dataKey: "standards" }},
       { key: "gestionProy", label: "Gestión de proyectos", desc: "Metodología", template: { type: "projectflow", dataKey: "projectflow" }},
-      { key: "proveedores", label: "Gestión de proveedores", desc: "Evaluación y relación", template: { type: "suppliers", dataKey: "list" }},
     ],
   },
   {
