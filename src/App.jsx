@@ -240,7 +240,7 @@ const PILLARS = [
       { key: "procesosCore", label: "Procesos core", desc: "Ventas → Ejecución → Entrega", template: { type: "processflow", dataKey: "flow" }},
       { key: "sops", label: "SOPs", desc: "Procedimientos estándar", template: { type: "checklist", dataKey: "list", variant: "sops" }},
       { key: "calidadCtrl", label: "Control de calidad", desc: "Estándares", template: { type: "standards", dataKey: "standards" }},
-      { key: "gestionProy", label: "Gestión de proyectos", desc: "Metodología", template: { type: "processflow", dataKey: "flow" }},
+      { key: "gestionProy", label: "Gestión de proyectos", desc: "Metodología", template: { type: "projectflow", dataKey: "projectflow" }},
       { key: "proveedores", label: "Gestión de proveedores", desc: "Evaluación y relación", template: { type: "suppliers", dataKey: "list" }},
     ],
   },
@@ -716,6 +716,123 @@ function ProcessFlowEditor({ pid, ik, ct, onUpdate, color }) {
   </div>;
 }
 
+function ProjectFlowEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-projectflow`;
+  const defaultData = { phases: [
+    { id: genId(), name: "FASE 1: ARRANQUE", subtitle: "Semana 1 después de firmar", columns: ["Paso", "Qué", "Responsable"], steps: [
+      { id: genId(), values: ["Reunión de arranque interna", "Supervisor + capataz + técnico presupuestador revisan contrato, plazos, alcance", "Supervisor"] },
+      { id: genId(), values: ["Revisión de presupuesto", "Comparar cubicación original vs lo que realmente se va a necesitar", "Técnico"] },
+      { id: genId(), values: ["Plan de adquisiciones", "Lista completa de materiales con fechas de necesidad en obra", "Compras"] },
+      { id: genId(), values: ["Carta Gantt detallada", "Programa de obra con hitos de avance y fechas de EP", "Supervisor"] },
+      { id: genId(), values: ["Asignación de cuadrilla", "Maestros asignados, capataz confirmado", "Supervisor"] },
+    ], checkpoints: [
+      { id: genId(), title: "Punto de control #1: ¿Tenemos todo para partir?", text: "Checklist antes de empezar: contrato firmado, planos en obra, materiales críticos pedidos, cuadrilla asignada, programa aprobado. Si falta algo, no se parte." }
+    ]},
+    { id: genId(), name: "FASE 2: EJECUCIÓN", subtitle: "", columns: ["Paso", "Frecuencia", "Qué", "Responsable"], steps: [
+      { id: genId(), values: ["Control de avance vs Gantt", "Semanal", "Capataz reporta % avance real vs programado", "Capataz → Supervisor"] },
+      { id: genId(), values: ["Coordinación de materiales", "Semanal", "Revisar qué se necesita las próximas 2 semanas", "Supervisor → Compras"] },
+      { id: genId(), values: ["Detección de adicionales", "Continuo", "Cualquier trabajo fuera del alcance original se identifica ANTES de ejecutar", "Supervisor"] },
+      { id: genId(), values: ["Control de calidad en terreno", "Por hito", "Verificar ejecución según norma antes de avanzar al siguiente tramo", "Capataz"] },
+      { id: genId(), values: ["Registro fotográfico", "Diario", "Fotos de avance para respaldo y EP", "Capataz"] },
+    ], checkpoints: [
+      { id: genId(), title: "Punto de control #2: Revisión semanal de obra", text: "Cada semana el supervisor verifica: avance vs programa, materiales pendientes, adicionales detectados, problemas de calidad. Si el avance se desvía >10%, escala a GG." },
+      { id: genId(), title: "Punto de control #3: Gate de adicionales", text: "Regla: NINGÚN adicional se ejecuta sin que se comunique al cliente, se cotice, y se apruebe POR ESCRITO (mail, WhatsApp, lo que sea). Sin aprobación = no se hace." },
+      { id: genId(), title: "Punto de control #4: Verificación de calidad por hito", text: "Antes de cerrar cada etapa (canalización, cableado, tableros, terminaciones), el capataz verifica con checklist técnico. Si hay errores, se corrigen ANTES de avanzar. Rehacer trabajo después cuesta 3x más." }
+    ]},
+    { id: genId(), name: "FASE 3: COBRO", subtitle: "paralelo a ejecución", columns: ["Paso", "Cuándo", "Qué", "Responsable"], steps: [
+      { id: genId(), values: ["Preparar estado de pago", "Según hitos del contrato", "Avance valorizado + respaldo fotográfico", "Técnico + Supervisor"] },
+      { id: genId(), values: ["Aprobación del EP por cliente", "Dentro de 5 días de enviado", "Gestionar firma del mandante", "Supervisor"] },
+      { id: genId(), values: ["Emisión de factura", "Máximo 48 hrs después de EP aprobado", "Facturar inmediatamente", "Jefa Admin"] },
+      { id: genId(), values: ["Seguimiento de pago", "Según plazo de factura", "Cobrar activamente, no esperar", "Jefa Admin"] },
+    ], checkpoints: [
+      { id: genId(), title: "Punto de control #5: EP enviado a tiempo", text: "Regla: Cada EP se envía máximo 3 días después de cumplir el hito. Un EP atrasado = plata atrasada. El supervisor es responsable de tener el respaldo listo." }
+    ]},
+    { id: genId(), name: "FASE 4: CIERRE", subtitle: "", columns: ["Paso", "Qué", "Responsable"], steps: [
+      { id: genId(), values: ["Punch list", "Lista de observaciones pendientes con plazo", "Supervisor + Capataz"] },
+      { id: genId(), values: ["Pruebas y certificaciones", "Protocolos de prueba, certificados SEC si aplica", "Capataz"] },
+      { id: genId(), values: ["Entrega documental", "Planos as-built, garantías, manuales", "Técnico"] },
+      { id: genId(), values: ["EP final + factura final", "Último cobro", "Jefa Admin"] },
+      { id: genId(), values: ["Revisión de margen", "Comparar presupuesto original vs costo real del proyecto", "GG + Jefa Admin"] },
+      { id: genId(), values: ["Feedback interno", "¿Qué salió bien? ¿Qué salió mal? ¿Qué cambiar?", "Supervisor + GG"] },
+    ], checkpoints: [
+      { id: genId(), title: "Punto de control #6: Cierre financiero", text: "El proyecto no se da por cerrado hasta que: última factura cobrada, margen real calculado, y lecciones documentadas. Si no, nunca sabes si ganaste o perdiste plata." }
+    ]}
+  ]};
+  const data = getJSON(dk, defaultData);
+  const save = (d) => setJSON(dk, d);
+  const [collapsed, setCollapsed] = useState({});
+  const toggleCollapse = (pid2) => setCollapsed(p => ({ ...p, [pid2]: !p[pid2] }));
+  const addPhase = () => save({ phases: [...data.phases, { id: genId(), name: "Nueva fase", subtitle: "", columns: ["Paso", "Qué", "Responsable"], steps: [], checkpoints: [] }] });
+  const updatePhase = (phaseId, field, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, [field]: val } : p) });
+  const delPhase = (phaseId) => { if (window.confirm("¿Eliminar esta fase?")) save({ phases: data.phases.filter(p => p.id !== phaseId) }); };
+  const addStep = (phaseId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: [...p.steps, { id: genId(), values: p.columns.map(() => "") }] } : p) });
+  const updateStepVal = (phaseId, stepId, ci, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.map(s => s.id === stepId ? { ...s, values: s.values.map((v, i) => i === ci ? val : v) } : s) } : p) });
+  const delStep = (phaseId, stepId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, steps: p.steps.filter(s => s.id !== stepId) } : p) });
+  const addCheckpoint = (phaseId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: [...p.checkpoints, { id: genId(), title: "Nuevo punto de control", text: "" }] } : p) });
+  const updateCheckpoint = (phaseId, cpId, field, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: p.checkpoints.map(c => c.id === cpId ? { ...c, [field]: val } : c) } : p) });
+  const delCheckpoint = (phaseId, cpId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, checkpoints: p.checkpoints.filter(c => c.id !== cpId) } : p) });
+  const addColumn = (phaseId) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: [...p.columns, "Nueva columna"], steps: p.steps.map(s => ({ ...s, values: [...s.values, ""] })) } : p) });
+  const renameColumn = (phaseId, ci, val) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.map((c, i) => i === ci ? val : c) } : p) });
+  const delColumn = (phaseId, ci) => save({ phases: data.phases.map(p => p.id === phaseId ? { ...p, columns: p.columns.filter((_, i) => i !== ci), steps: p.steps.map(s => ({ ...s, values: s.values.filter((_, i) => i !== ci) })) } : p) });
+  const TS = { width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,.06)", background: "transparent", color: "#e0e0e0", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box", minHeight: 32 };
+  return <div>
+    {data.phases.map((phase, pi) => <div key={phase.id} style={{ marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 10, background: `${color}22`, borderLeft: `4px solid ${color}`, marginBottom: collapsed[phase.id] ? 0 : 12 }}>
+        <div style={{ flex: 1 }}>
+          {VInp(phase.name, v => updatePhase(phase.id, "name", v), "Nombre de fase", { fontWeight: 800, fontSize: 14, background: "transparent", border: "none", padding: "2px 0", color: color })}
+          {VInp(phase.subtitle, v => updatePhase(phase.id, "subtitle", v), "Subtítulo / periodo", { fontSize: 11, color: "#888", background: "transparent", border: "none", padding: "2px 0" })}
+        </div>
+        <button onClick={() => toggleCollapse(phase.id)} style={{ background: "none", border: "none", color: "#888", cursor: "pointer", fontSize: 16 }}>{collapsed[phase.id] ? "▶" : "▼"}</button>
+        <button onClick={() => delPhase(phase.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer" }}>🗑</button>
+      </div>
+      {!collapsed[phase.id] && <>
+        <div style={{ overflowX: "auto", marginBottom: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, fontFamily: "'DM Sans',sans-serif" }}>
+            <thead><tr>
+              <th style={{ padding: "8px 10px", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,.12)", fontSize: 10, color: "#888", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, width: 30 }}>#</th>
+              {phase.columns.map((col, ci) => <th key={ci} style={{ padding: "8px 6px", textAlign: "left", borderBottom: "1px solid rgba(255,255,255,.12)", position: "relative" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {VInp(col, v => renameColumn(phase.id, ci, v), "Col", { fontSize: 10, fontWeight: 700, textTransform: "uppercase", background: "transparent", border: "none", padding: 0, letterSpacing: 1, color: "#888", width: "auto" })}
+                  {phase.columns.length > 1 && <button onClick={() => delColumn(phase.id, ci)} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 9, padding: 0 }}>✕</button>}
+                </div>
+              </th>)}
+              <th style={{ width: 60, textAlign: "center", borderBottom: "1px solid rgba(255,255,255,.12)" }}>
+                <button onClick={() => addColumn(phase.id)} style={{ background: "none", border: "1px dashed rgba(255,255,255,.15)", color: "#666", fontSize: 10, cursor: "pointer", padding: "2px 6px", borderRadius: 4, fontFamily: "'DM Sans',sans-serif" }}>+ Col</button>
+              </th>
+            </tr></thead>
+            <tbody>{phase.steps.map((step, si) => <tr key={step.id} style={{ background: si % 2 === 0 ? "transparent" : "rgba(255,255,255,.02)" }}>
+              <td style={{ padding: "6px 10px", borderBottom: "1px solid rgba(255,255,255,.05)", color: "#555", fontSize: 11, fontWeight: 600 }}>{si + 1}</td>
+              {step.values.map((val, ci) => <td key={ci} style={{ padding: "4px 6px", borderBottom: "1px solid rgba(255,255,255,.05)" }}>
+                <textarea value={val} onChange={e => updateStepVal(phase.id, step.id, ci, e.target.value)} placeholder="..." style={TS} />
+              </td>)}
+              <td style={{ padding: "4px 6px", borderBottom: "1px solid rgba(255,255,255,.05)", textAlign: "center" }}>
+                <button onClick={() => delStep(phase.id, step.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
+              </td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <button onClick={() => addStep(phase.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px dashed rgba(255,255,255,.12)", background: "none", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>+ Agregar fila</button>
+        </div>
+        {phase.checkpoints.map(cp => <div key={cp.id} style={{ marginBottom: 10, padding: 12, borderRadius: 10, background: "rgba(232,72,85,.08)", border: "1px solid rgba(232,72,85,.2)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 14 }}>🔴</span>
+            {VInp(cp.title, v => updateCheckpoint(phase.id, cp.id, "title", v), "Título del checkpoint", { fontWeight: 700, fontSize: 13, flex: 1, background: "transparent", border: "none", padding: "2px 0", color: "#E84855" })}
+            <button onClick={() => delCheckpoint(phase.id, cp.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 11 }}>✕</button>
+          </div>
+          <textarea value={cp.text} onChange={e => updateCheckpoint(phase.id, cp.id, "text", e.target.value)} placeholder="Descripción del punto de control..." style={{ width: "100%", minHeight: 50, padding: "8px 10px", borderRadius: 6, border: "1px solid rgba(232,72,85,.15)", background: "rgba(0,0,0,.15)", color: "#ccc", fontSize: 12, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+        </div>)}
+        <div style={{ marginBottom: 8 }}>
+          <button onClick={() => addCheckpoint(phase.id)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px dashed rgba(232,72,85,.2)", background: "none", color: "#E84855", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>+ Punto de control</button>
+        </div>
+      </>}
+    </div>)}
+    <div style={{ marginTop: 12 }}>{VBtn("+ Agregar fase", addPhase, color)}</div>
+  </div>;
+}
+
 function StandardsEditor({ pid, ik, ct, onUpdate, color }) {
   const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
   const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
@@ -901,6 +1018,7 @@ export default function App() {
           {tplType === "scorecard" && <ScorecardEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "cards" && <CardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "processflow" && <ProcessFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "projectflow" && <ProjectFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
         </div>
