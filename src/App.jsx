@@ -914,6 +914,190 @@ function Ring({ pct, clr, sz = 64 }) {
   </svg>;
 }
 
+// --- BSC ← Pillar data extraction ---
+function extractNumbers(text) {
+  if (!text) return { money: [], pcts: [], nums: [] };
+  const money = text.match(/\$[\d.,]+[MmKk]?/g) || [];
+  const pcts = text.match(/\d+%/g) || [];
+  const nums = text.match(/\d[\d.,]*/g) || [];
+  return { money, pcts, nums };
+}
+
+function extractPillarInsights(ct, pillar) {
+  const gj = (k, fb) => { try { return JSON.parse(ct[k] || "null") || fb; } catch { return fb; } };
+  const pid = pillar.id;
+  const items = {};
+  let filled = 0, total = 0;
+
+  for (const it of pillar.items) {
+    const tpl = it.template;
+    total++;
+    if (tpl.type) {
+      const dk = `${pid}-${it.key}-${tpl.dataKey}`;
+      const raw = ct[dk];
+      if (!raw) continue;
+      const t = tpl.type;
+      if (t === "processflow") {
+        const d = gj(dk, { flows: [] });
+        if (d.flows.length) { filled++; items[it.key] = { type: t, label: it.label, processCount: d.flows.length, totalSteps: d.flows.reduce((a, f) => a + (f.steps || []).length, 0), names: d.flows.map(f => f.name).filter(Boolean) }; }
+      } else if (t === "projectflow") {
+        const d = gj(dk, { phases: [] });
+        if (d.phases.length) { filled++; items[it.key] = { type: t, label: it.label, phaseCount: d.phases.length, totalSteps: d.phases.reduce((a, p) => a + (p.steps || []).length, 0), checkpoints: d.phases.reduce((a, p) => a + (p.checkpoints || []).length, 0) }; }
+      } else if (t === "checklist") {
+        const d = gj(dk, { sections: [] });
+        const tot = d.sections.reduce((a, s) => a + (s.items || []).length, 0);
+        const done = d.sections.reduce((a, s) => a + (s.items || []).filter(i => tpl.variant === "sops" ? i.estado === "done" : i.done).length, 0);
+        if (tot > 0) { filled++; items[it.key] = { type: t, label: it.label, variant: tpl.variant, totalItems: tot, doneItems: done, completionRate: Math.round((done / tot) * 100) }; }
+      } else if (t === "standards") {
+        const d = gj(dk, []);
+        if (d.length) { filled++; items[it.key] = { type: t, label: it.label, count: d.length, avgLevel: Math.round(d.reduce((a, s) => a + (s.nivel || 0), 0) / d.length), lowCount: d.filter(s => (s.nivel || 0) < 40).length }; }
+      } else if (t === "orgchart") {
+        const d = gj(dk, { nodes: [] });
+        const cnt = (ns) => ns.reduce((a, n) => a + 1 + cnt(n.children || []), 0);
+        const sz = cnt(d.nodes);
+        if (sz > 0) { filled++; items[it.key] = { type: t, label: it.label, teamSize: sz }; }
+      } else if (t === "roles") {
+        const d = gj(dk, []);
+        if (d.length) { filled++; items[it.key] = { type: t, label: it.label, roleCount: d.length, withResp: d.filter(r => (r.responsabilidades || []).filter(Boolean).length > 0).length }; }
+      } else if (t === "pipeline") {
+        const d = gj(dk, { candidates: [] });
+        if (d.candidates.length) { filled++; items[it.key] = { type: t, label: it.label, count: d.candidates.length }; }
+      } else if (t === "scorecard") {
+        const d = gj(dk, { roles: [] });
+        if (d.roles.length) { filled++; items[it.key] = { type: t, label: it.label, roles: d.roles.length, metrics: d.roles.reduce((a, r) => a + (r.metricas || []).length, 0) }; }
+      } else if (t === "cards") {
+        const d = gj(dk, []);
+        if (d.length) { filled++; items[it.key] = { type: t, label: it.label, count: d.length }; }
+      }
+    } else if (tpl.sections) {
+      const secs = tpl.sections;
+      const filledSecs = secs.filter(s => (ct[`${pid}-${it.key}-${s.key}`] || "").trim().length > 0);
+      if (filledSecs.length > 0) {
+        filled++;
+        const allText = secs.map(s => ct[`${pid}-${it.key}-${s.key}`] || "").join("\n");
+        const nums = extractNumbers(allText);
+        items[it.key] = { type: "sections", label: it.label, filled: filledSecs.length, total: secs.length, completionRate: Math.round((filledSecs.length / secs.length) * 100), numbers: nums, texts: filledSecs.map(s => ({ key: s.key, label: s.label, preview: (ct[`${pid}-${it.key}-${s.key}`] || "").slice(0, 300) })) };
+      }
+    }
+  }
+  return { pillarId: pid, pillarName: pillar.name, pillarIcon: pillar.icon, pillarColor: pillar.color, items, overallCompleteness: total > 0 ? Math.round((filled / total) * 100) : 0 };
+}
+
+function suggestKPIs(perspKey, insights, ct) {
+  const sugs = [];
+  const find = (pid, ik) => { const ins = insights.find(i => i.pillarId === pid); return ins?.items?.[ik]; };
+  const hasText = (pid, ik) => { const d = find(pid, ik); return d?.type === "sections" && d.filled > 0; };
+  const textPreview = (pid, ik, sk) => {
+    const key = `${pid}-${ik}-${sk}`;
+    return (ct[key] || "").trim();
+  };
+  const firstMoney = (pid, ik) => { const d = find(pid, ik); return d?.numbers?.money?.[0] || ""; };
+
+  if (perspKey === "financiera") {
+    // Pilar 5: Finanzas
+    const be = find(5, "breakeven");
+    if (be) {
+      const vmTxt = textPreview(5, "breakeven", "ventaMinima");
+      const m = (vmTxt.match(/\$[\d.,]+[MmKk]?/) || [])[0] || firstMoney(5, "breakeven") || "$74M";
+      sugs.push({ objetivo: `Superar punto de equilibrio (${m}/mes)`, indicador: "Facturacion mensual vs break-even", meta: `Nunca bajo ${m}/mes`, iniciativa: "Forecast a 90 dias + alerta si baja de umbral", source: "Pilar 5: Break-even", confidence: "media" });
+    }
+    const fc = find(5, "flujoCaja");
+    if (fc) {
+      const reservaTxt = textPreview(5, "flujoCaja", "reserva");
+      const meta = reservaTxt.match(/\$[\d.,]+[MmKk]?/) ? reservaTxt.match(/\$[\d.,]+[MmKk]?/)[0] : "$74M";
+      sugs.push({ objetivo: "Construir reserva de caja", indicador: "Meses de caja disponible vs costos fijos", meta: `Reserva: ${meta} (2-3 meses)`, iniciativa: "Separar excedentes en cuenta aparte cada mes bueno", source: "Pilar 5: Flujo de caja", confidence: "media" });
+    }
+    const kf = find(5, "kpiFinancieros");
+    if (kf) {
+      sugs.push({ objetivo: "Monitorear KPIs financieros clave", indicador: "Caja + Facturacion + Dias cobranza + Backlog", meta: "Dashboard mensual con 5+ indicadores", iniciativa: "Implementar P&L mensual y revision sistematica", source: "Pilar 5: KPIs financieros", confidence: "media" });
+    }
+    const cxc = find(5, "cxc");
+    if (cxc) {
+      sugs.push({ objetivo: "Reducir cuentas por cobrar", indicador: "Dias promedio de cobranza", meta: "<30 dias promedio", iniciativa: "Politica de cobranza + escalamiento automatico", source: "Pilar 5: CxC", confidence: "media" });
+    }
+    if (hasText(4, "pricing")) {
+      sugs.push({ objetivo: "Optimizar margenes por tipo de proyecto", indicador: "Margen de contribucion promedio", meta: ">50% margen marginal", iniciativa: "Costeo por proyecto + revision mensual", source: "Pilar 4: Pricing", confidence: "media" });
+    }
+    if (sugs.length === 0) {
+      sugs.push({ objetivo: "Definir metas financieras del ano", indicador: "Facturacion mensual", meta: "Definir break-even y meta mensual", iniciativa: "Completar Pilar 5: Finanzas", source: "Sin datos en pilares", confidence: "baja" });
+    }
+  }
+
+  if (perspKey === "clientes") {
+    if (hasText(4, "pipeline")) {
+      const m = firstMoney(4, "pipeline") || ">$200M";
+      sugs.push({ objetivo: "Pipeline comercial activo permanente", indicador: "Valor del pipeline ($)", meta: `${m} en propuestas activas`, iniciativa: "Revisar pipeline semanalmente, nutrir cada etapa", source: "Pilar 4: Pipeline", confidence: "media" });
+    }
+    if (hasText(4, "metricas")) {
+      sugs.push({ objetivo: "Mejorar tasa de cierre comercial", indicador: "Tasa de cierre (%)", meta: "Medir y mejorar 5pp cada trimestre", iniciativa: "Tracking de oportunidades + analisis de perdidas", source: "Pilar 4: Metricas", confidence: "media" });
+    }
+    if (hasText(6, "canales")) {
+      sugs.push({ objetivo: "Diversificar canales de adquisicion", indicador: "Nro. canales activos generando leads", meta: "3+ canales con flujo constante", iniciativa: "Activar al menos 1 canal nuevo por trimestre", source: "Pilar 6: Canales", confidence: "media" });
+    }
+    if (hasText(6, "casosExito")) {
+      sugs.push({ objetivo: "Documentar casos de exito", indicador: "Casos documentados con resultados", meta: "5+ casos publicados", iniciativa: "1 caso nuevo por proyecto terminado", source: "Pilar 6: Casos de exito", confidence: "media" });
+    }
+    if (hasText(1, "clienteIdeal")) {
+      sugs.push({ objetivo: "Atraer perfil de cliente ideal", indicador: "% proyectos con cliente ideal", meta: ">70% de proyectos", iniciativa: "Filtro en cotizacion + decir NO a no-ideales", source: "Pilar 1: Cliente ideal", confidence: "media" });
+    }
+    if (sugs.length === 0) {
+      sugs.push({ objetivo: "Desarrollar estrategia comercial", indicador: "Oportunidades activas", meta: "Definir pipeline y metricas", iniciativa: "Completar Pilar 4: Comercial y Ventas", source: "Sin datos en pilares", confidence: "baja" });
+    }
+  }
+
+  if (perspKey === "procesos") {
+    const pf = find(3, "procesosCore");
+    if (pf) {
+      sugs.push({ objetivo: "Documentar procesos core", indicador: `Procesos documentados (${pf.processCount} actuales)`, meta: `${pf.processCount}+ procesos con pasos claros`, iniciativa: "Revisar y actualizar trimestralmente", source: "Pilar 3: Procesos core", confidence: "alta" });
+    }
+    const sops = find(3, "sops");
+    if (sops) {
+      sugs.push({ objetivo: "Cumplimiento de SOPs", indicador: `Tasa de SOPs completados (${sops.completionRate}% actual)`, meta: `${sops.completionRate}% → 100%`, iniciativa: "Revisar SOPs pendientes mensualmente", source: "Pilar 3: SOPs", confidence: "alta" });
+    }
+    const std = find(3, "calidadCtrl");
+    if (std) {
+      sugs.push({ objetivo: "Elevar nivel de calidad", indicador: `Cumplimiento promedio estandares (${std.avgLevel}% actual)`, meta: `${std.avgLevel}% → 90%+`, iniciativa: `Resolver ${std.lowCount} estandares bajo 40%`, source: "Pilar 3: Control de calidad", confidence: "alta" });
+    }
+    const gp = find(3, "gestionProy");
+    if (gp) {
+      sugs.push({ objetivo: "Estandarizar gestion de proyectos", indicador: `Checkpoints activos (${gp.checkpoints} definidos)`, meta: `${gp.phaseCount} fases con ${gp.checkpoints} puntos de control`, iniciativa: "Aplicar metodologia en cada proyecto nuevo", source: "Pilar 3: Gestion de proyectos", confidence: "alta" });
+    }
+    if (hasText(7, "automatizaciones")) {
+      sugs.push({ objetivo: "Automatizar procesos repetitivos", indicador: "Procesos automatizados", meta: "3+ automatizaciones implementadas", iniciativa: "Identificar top 3 tareas manuales repetitivas", source: "Pilar 7: Automatizaciones", confidence: "media" });
+    }
+    if (sugs.length === 0) {
+      sugs.push({ objetivo: "Documentar operaciones", indicador: "Procesos core documentados", meta: "Al menos 3 procesos", iniciativa: "Completar Pilar 3: Procesos y Operaciones", source: "Sin datos en pilares", confidence: "baja" });
+    }
+  }
+
+  if (perspKey === "aprendizaje") {
+    const org = find(2, "organigrama");
+    if (org) {
+      sugs.push({ objetivo: "Crecer equipo segun plan", indicador: `Tamano equipo (${org.teamSize} actual)`, meta: `${org.teamSize} → meta definida en organigrama proyectado`, iniciativa: "Revisar brechas vs organigrama proyectado trimestralmente", source: "Pilar 2: Organigrama", confidence: "alta" });
+    }
+    const roles = find(2, "roles");
+    if (roles) {
+      sugs.push({ objetivo: "Roles con responsabilidades claras", indicador: `Roles definidos (${roles.withResp}/${roles.roleCount})`, meta: `${roles.roleCount}/${roles.roleCount} con responsabilidades`, iniciativa: "Completar descripcion de cada rol pendiente", source: "Pilar 2: Roles", confidence: "alta" });
+    }
+    const onb = find(2, "onboarding");
+    if (onb) {
+      sugs.push({ objetivo: "Onboarding efectivo", indicador: `Completitud onboarding (${onb.completionRate}%)`, meta: `${onb.completionRate}% → 100%`, iniciativa: "Revisar items pendientes y actualizar proceso", source: "Pilar 2: Onboarding", confidence: "alta" });
+    }
+    const ev = find(2, "evaluacion");
+    if (ev) {
+      sugs.push({ objetivo: "Evaluacion de desempeno sistematica", indicador: `Roles con evaluacion (${ev.roles})`, meta: `${ev.roles} roles con ${ev.metrics} metricas activas`, iniciativa: `Evaluar con frecuencia ${ev.frecuencia || "definida"}`, source: "Pilar 2: Evaluacion", confidence: "alta" });
+    }
+    if (hasText(7, "herramientas")) {
+      sugs.push({ objetivo: "Implementar stack tecnologico", indicador: "Herramientas definidas vs implementadas", meta: "100% del stack implementado", iniciativa: "Cerrar brechas tecnologicas identificadas", source: "Pilar 7: Herramientas", confidence: "media" });
+    }
+    if (sugs.length === 0) {
+      sugs.push({ objetivo: "Desarrollar equipo y capacidades", indicador: "Roles definidos", meta: "Organigrama + roles claros", iniciativa: "Completar Pilar 2: Estructura y Personas", source: "Sin datos en pilares", confidence: "baja" });
+    }
+  }
+
+  return sugs;
+}
+
 export default function App() {
   const [co, setCo] = useState("belectric");
   const [st, setSt] = useState({});
@@ -922,6 +1106,7 @@ export default function App() {
   const [ai, setAi] = useState(null);
   const [vw, setVw] = useState("dashboard");
   const [bsc, setBsc] = useState({});
+  const [bscExp, setBscExp] = useState({});
   const [pn, setPn] = useState({});
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -965,6 +1150,7 @@ export default function App() {
   const uCt = (pid, ik, sk, v) => setCt(p => ({ ...p, [`${pid}-${ik}-${sk}`]: v }));
   const uCt2 = (fullKey, value) => setCt(p => ({ ...p, [fullKey]: value }));
   const uBsc = (pk, sk, v) => setBsc(p => ({ ...p, [`${pk}-${sk}`]: v }));
+  const toggleBscExp = k => setBscExp(p => ({ ...p, [k]: !p[k] }));
   const uPn = (id, v) => setPn(p => ({ ...p, [id]: v }));
   const getJSON = (key, fallback) => { try { return JSON.parse(ct[key] || "null") || fallback; } catch { return fallback; } };
   const setJSON = (key, data) => uCt2(key, JSON.stringify(data));
@@ -1078,12 +1264,48 @@ export default function App() {
   // BSC VIEW
   if (vw === "bsc") {
     return <div style={S}>{F}{TabBar}<Badge />
-      <div style={{ padding: 20 }}>{Bk("Volver", () => setVw("dashboard"))}<h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800 }}>🎯 Balanced Scorecard</h1><p style={{ margin: 0, fontSize: 13, color: "#888" }}>Estrategia → Ejecución</p></div>
+      <div style={{ padding: 20 }}>{Bk("Volver", () => setVw("dashboard"))}<h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800 }}>🎯 Balanced Scorecard</h1><p style={{ margin: 0, fontSize: 13, color: "#888" }}>Estrategia → Ejecución · Auto-vinculado a pilares</p></div>
       <div style={{ padding: "0 20px 40px" }}>
         {BSC_PERSPECTIVES.map(p => {
           const lk = PILLARS.filter(pl => pl.bscLink.includes(p.key));
+          const insArr = lk.map(lp => extractPillarInsights(ct, lp));
+          const sgs = suggestKPIs(p.key, insArr, ct);
           return <div key={p.key} style={{ marginBottom: 16, padding: 16, background: "rgba(255,255,255,.03)", borderRadius: 14, border: `1px solid ${p.color}22` }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}><span style={{ fontSize: 22 }}>{p.icon}</span><div><h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: p.color }}>{p.label}</h3><p style={{ margin: 0, fontSize: 12, color: "#888" }}>{p.question}</p></div></div>
+
+            {/* Pillar data completeness bars */}
+            <div style={{ marginBottom: 12, padding: 10, borderRadius: 8, background: "rgba(0,0,0,.15)" }}>
+              <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Datos desde pilares</div>
+              {insArr.map(ins => <div key={ins.pillarId} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 11, color: ins.pillarColor, fontWeight: 600, minWidth: 140, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ins.pillarIcon} {ins.pillarName}</span>
+                <div style={{ flex: 1, height: 4, borderRadius: 2, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 2, background: ins.pillarColor, width: `${ins.overallCompleteness}%`, transition: "width .3s" }} />
+                </div>
+                <span style={{ fontSize: 10, color: "#666", minWidth: 30, textAlign: "right" }}>{ins.overallCompleteness}%</span>
+              </div>)}
+            </div>
+
+            {/* Suggestions panel */}
+            {sgs.length > 0 && <div style={{ marginBottom: 12, padding: 12, borderRadius: 10, background: `${p.color}08`, border: `1px dashed ${p.color}33` }}>
+              <div onClick={() => toggleBscExp(p.key)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", marginBottom: bscExp[p.key] ? 10 : 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: p.color, textTransform: "uppercase", letterSpacing: 1 }}>💡 {sgs.length} sugerencia{sgs.length > 1 ? "s" : ""} desde pilares</span>
+                <span style={{ color: "#666", fontSize: 12 }}>{bscExp[p.key] ? "▼" : "▶"}</span>
+              </div>
+              {bscExp[p.key] && sgs.map((sg, idx) => <div key={idx} style={{ padding: 10, marginBottom: 8, borderRadius: 8, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.06)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#e0e0e0" }}>{sg.objetivo}</div>
+                  <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, whiteSpace: "nowrap", marginLeft: 8, background: sg.confidence === "alta" ? "#4CAF5022" : sg.confidence === "media" ? "#FF980022" : "#88888822", color: sg.confidence === "alta" ? "#4CAF50" : sg.confidence === "media" ? "#FF9800" : "#888" }}>{sg.confidence === "alta" ? "Dato concreto" : sg.confidence === "media" ? "Texto libre" : "Genérica"}</span>
+                </div>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>KPI: {sg.indicador}</div>
+                <div style={{ fontSize: 11, color: "#888", marginBottom: 2 }}>Meta: {sg.meta}</div>
+                <div style={{ fontSize: 10, color: "#555", marginBottom: 6, fontStyle: "italic" }}>{sg.source}</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {VBtn("Usar todo", () => { uBsc(p.key, "objetivo", sg.objetivo); uBsc(p.key, "indicador", sg.indicador); uBsc(p.key, "meta", sg.meta); uBsc(p.key, "iniciativa", sg.iniciativa); }, p.color, true)}
+                  {VBtn("Solo KPI", () => { uBsc(p.key, "indicador", sg.indicador); uBsc(p.key, "meta", sg.meta); }, "#888", true)}
+                </div>
+              </div>)}
+            </div>}
+
             {[{ k: "objetivo", l: "Objetivo", ph: "¿Qué lograr?" }, { k: "indicador", l: "KPI", ph: "¿Cómo medir?" }, { k: "meta", l: "Meta", ph: "Número concreto" }, { k: "iniciativa", l: "Iniciativa", ph: "¿Qué hacer?" }].map(f => <div key={f.k} style={{ marginBottom: 10 }}><label style={{ fontSize: 11, color: "#999", fontWeight: 600, display: "block", marginBottom: 4 }}>{f.l}</label><textarea value={bsc[`${p.key}-${f.k}`] || ""} onChange={e => uBsc(p.key, f.k, e.target.value)} placeholder={f.ph} style={{ width: "100%", minHeight: 50, padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.25)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} /></div>)}
             <div style={{ borderTop: "1px solid rgba(255,255,255,.05)", paddingTop: 10 }}><span style={{ fontSize: 10, color: "#555", textTransform: "uppercase", letterSpacing: 1 }}>Pilares:</span><div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>{lk.map(l => <span key={l.id} onClick={() => { setAp(l.id); setVw("pillar"); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", background: l.color + "22", color: l.color }}>{l.icon} {l.name}</span>)}</div></div>
           </div>;
