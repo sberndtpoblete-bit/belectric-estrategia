@@ -907,6 +907,8 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
 
   const [editId, setEditId] = useState(null);
   const [editVal, setEditVal] = useState("");
+  const [editCatId, setEditCatId] = useState(null);
+  const [editCatVal, setEditCatVal] = useState("");
   const [viewMode, setViewMode] = useState("combined");
   const [comparing, setComparing] = useState(false);
   const [selMonths, setSelMonths] = useState([]);
@@ -982,7 +984,11 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: color, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingLeft: 4 }}>{cat}</div>
           {items.map(g => <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
             {VInp(g.nombre, v => updateGasto(g.id, "nombre", v), "Concepto", { flex: 2 })}
-            <input list="be-cats" value={g.categoria || ""} onChange={e => updateGasto(g.id, "categoria", e.target.value)} placeholder="Categoría" style={{ ...inpS, flex: 1, fontSize: 11 }} />
+            <input list="be-cats" value={editCatId === g.id ? editCatVal : (g.categoria || "")}
+              onFocus={() => { setEditCatId(g.id); setEditCatVal(g.categoria || ""); }}
+              onChange={e => setEditCatVal(e.target.value)}
+              onBlur={() => { updateGasto(g.id, "categoria", editCatVal); setEditCatId(null); }}
+              placeholder="Categoría" style={{ ...inpS, flex: 1, fontSize: 11 }} />
             <input type="text" inputMode="numeric"
               value={editId === g.id ? editVal : fmtP(g.monto || 0)}
               onFocus={() => { setEditId(g.id); setEditVal(String(g.monto || "")); }}
