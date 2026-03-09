@@ -876,6 +876,9 @@ const DEFAULT_BE = {
   ],
   margen: 50,
   valorUF: 38500,
+  pctGastosGen: 12,
+  duracionContrato: 18,
+  catGastosGen: "",
   meses: Object.fromEntries(MESES_KEYS.map(m => [m, { facProy: 0, facReal: 0, contProyUF: 0, contRealUF: 0, cerrado: false }])),
 };
 
@@ -883,6 +886,9 @@ function migrateBE(d) {
   if (!d || !d.gastos) return DEFAULT_BE;
   let changed = false;
   if (d.valorUF === undefined) { d.valorUF = 38500; changed = true; }
+  if (d.pctGastosGen === undefined) { d.pctGastosGen = 12; changed = true; }
+  if (d.duracionContrato === undefined) { d.duracionContrato = 18; changed = true; }
+  if (d.catGastosGen === undefined) { d.catGastosGen = ""; changed = true; }
   d.gastos = d.gastos.map(g => {
     if (g.categoria === undefined) { changed = true; return { ...g, categoria: "" }; }
     return g;
@@ -1031,11 +1037,72 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
       </div>
     </div>
 
-    {/* Cards venta necesaria */}
+    {/* Cards venta necesaria (break-even) */}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
       <div style={cs.card}><div style={cs.lbl}>Venta necesaria / mes</div><div style={{ fontSize: 22, fontWeight: 800, color }}>{fmtP(breakeven)}</div></div>
       <div style={cs.card}><div style={cs.lbl}>Venta necesaria / año</div><div style={{ fontSize: 22, fontWeight: 800, color }}>{fmtP(breakevenAnual)}</div></div>
     </div>
+
+    {/* Cálculo por Gastos Generales */}
+    {(() => {
+      const pct = data.pctGastosGen || 12;
+      const dur = data.duracionContrato || 18;
+      const catSel = data.catGastosGen || "";
+      const gastosGenSum = catSel ? data.gastos.filter(g => g.categoria === catSel).reduce((a, g) => a + (g.monto || 0), 0) : 0;
+      const ventaAnualCalc = pct > 0 && gastosGenSum > 0 ? Math.round(gastosGenSum * 12 / (pct / 100)) : 0;
+      const contratadoNec = ventaAnualCalc > 0 ? Math.round(ventaAnualCalc * (dur / 12)) : 0;
+      const contratadoUF = data.valorUF > 0 ? Math.round(contratadoNec / data.valorUF * 10) / 10 : 0;
+      const ventaMensualCalc = ventaAnualCalc > 0 ? Math.round(ventaAnualCalc / 12) : 0;
+      return <div style={{ ...cs.card, marginBottom: 16, border: `1px solid ${color}22` }}>
+        <div style={{ ...cs.lbl, marginBottom: 10, color }}>Cálculo por gastos generales</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>Categoría de gastos generales</div>
+            <select value={catSel} onChange={e => save({ ...data, catGastosGen: e.target.value })}
+              style={{ ...inpS, width: "100%", fontSize: 12 }}>
+              <option value="">— Seleccionar —</option>
+              {categorias.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ minWidth: 80 }}>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>% de ingresos</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <input type="number" value={pct} min={1} max={100} onChange={e => save({ ...data, pctGastosGen: parseInt(e.target.value) || 12 })}
+                style={{ ...inpS, width: 50, textAlign: "center", fontSize: 12 }} /><span style={{ fontSize: 11, color: "#888" }}>%</span>
+            </div>
+          </div>
+          <div style={{ minWidth: 80 }}>
+            <div style={{ fontSize: 10, color: "#666", marginBottom: 3 }}>Duración contrato</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <input type="number" value={dur} min={1} max={60} onChange={e => save({ ...data, duracionContrato: parseInt(e.target.value) || 18 })}
+                style={{ ...inpS, width: 50, textAlign: "center", fontSize: 12 }} /><span style={{ fontSize: 11, color: "#888" }}>meses</span>
+            </div>
+          </div>
+        </div>
+        {catSel && gastosGenSum > 0 ? <div>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 6 }}>
+            Si {catSel} ({fmtP(gastosGenSum * 12)}/año) = {pct}% de ingresos, con contratos de {dur} meses:
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+            <div style={{ padding: 10, borderRadius: 8, background: "rgba(0,0,0,.2)" }}>
+              <div style={{ fontSize: 9, color: "#888", textTransform: "uppercase", marginBottom: 2 }}>Venta anual necesaria</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color }}>{fmtP(ventaAnualCalc)}</div>
+              <div style={{ fontSize: 10, color: "#666" }}>{fmtP(ventaMensualCalc)}/mes</div>
+            </div>
+            <div style={{ padding: 10, borderRadius: 8, background: "rgba(0,0,0,.2)" }}>
+              <div style={{ fontSize: 9, color: "#888", textTransform: "uppercase", marginBottom: 2 }}>Contratado necesario</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#81C784" }}>{fmtP(contratadoNec)}</div>
+              <div style={{ fontSize: 10, color: "#666" }}>{fmtUF(contratadoUF)}</div>
+            </div>
+            <div style={{ padding: 10, borderRadius: 8, background: "rgba(0,0,0,.2)" }}>
+              <div style={{ fontSize: 9, color: "#888", textTransform: "uppercase", marginBottom: 2 }}>Gasto general mensual</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#E84855" }}>{fmtP(gastosGenSum)}</div>
+              <div style={{ fontSize: 10, color: "#666" }}>{pct}% de {fmtP(ventaMensualCalc)}</div>
+            </div>
+          </div>
+        </div> : <div style={{ fontSize: 11, color: "#666", fontStyle: "italic" }}>Selecciona una categoría para calcular</div>}
+      </div>;
+    })()}
 
     {/* Toggle Real/Proyectado */}
     <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
