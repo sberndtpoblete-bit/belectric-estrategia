@@ -870,73 +870,133 @@ const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov"
 const MESES_KEYS = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const DEFAULT_BE = {
   gastos: [
-    { id: "g1", nombre: "Maestros propios (15)", monto: 20000000 },
-    { id: "g2", nombre: "Admin / overhead", monto: 15000000 },
-    { id: "g3", nombre: "Arriendo + vehículos + servicios", monto: 2500000 },
+    { id: "g1", nombre: "Maestros propios (15)", categoria: "Personal", monto: 20000000 },
+    { id: "g2", nombre: "Admin / overhead", categoria: "Personal", monto: 15000000 },
+    { id: "g3", nombre: "Arriendo + vehículos + servicios", categoria: "Operación", monto: 2500000 },
   ],
   margen: 50,
-  meses: Object.fromEntries(MESES_KEYS.map(m => [m, { facturacion: 0, contratos: 0 }])),
+  valorUF: 38500,
+  meses: Object.fromEntries(MESES_KEYS.map(m => [m, { facProy: 0, facReal: 0, contProyUF: 0, contRealUF: 0, cerrado: false }])),
 };
+
+function migrateBE(d) {
+  if (!d || !d.gastos) return DEFAULT_BE;
+  let changed = false;
+  if (d.valorUF === undefined) { d.valorUF = 38500; changed = true; }
+  d.gastos = d.gastos.map(g => {
+    if (g.categoria === undefined) { changed = true; return { ...g, categoria: "" }; }
+    return g;
+  });
+  const nm = {};
+  for (const mk of MESES_KEYS) {
+    const m = d.meses?.[mk] || {};
+    if (m.facProy !== undefined) { nm[mk] = m; }
+    else { changed = true; nm[mk] = { facProy: m.facturacion || 0, facReal: 0, contProyUF: m.contratos || 0, contRealUF: 0, cerrado: false }; }
+  }
+  d.meses = nm;
+  return d;
+}
 
 function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
   const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
   const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
   const dk = `${pid}-${ik}-breakeven`;
-  const data = getJSON(dk, DEFAULT_BE);
+  const raw = getJSON(dk, DEFAULT_BE);
+  const data = migrateBE(raw);
   const save = (d) => setJSON(dk, d);
 
+  const [editId, setEditId] = useState(null);
+  const [editVal, setEditVal] = useState("");
+  const [viewMode, setViewMode] = useState("combined");
+  const [comparing, setComparing] = useState(false);
+  const [selMonths, setSelMonths] = useState([]);
+
+  // Formatters
+  const fmt = (n) => { const s = n < 0 ? "-" : "", a = Math.abs(n); if (a >= 1e9) return `${s}$${(a/1e9).toFixed(1)}B`; if (a >= 1e6) return `${s}$${(a/1e6).toFixed(a%1e6===0?0:1)}M`; if (a >= 1e3) return `${s}$${(a/1e3).toFixed(0)}K`; return `${s}$${a}`; };
+  const fmtP = (n) => (n < 0 ? "-" : "") + "$" + Math.abs(Math.round(n)).toLocaleString("es-CL");
+  const fmtUF = (n) => (n || 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " UF";
+  const ufToCLP = (uf) => Math.round((uf || 0) * (data.valorUF || 38500));
+
+  // Calcs
   const totalFijos = data.gastos.reduce((a, g) => a + (g.monto || 0), 0);
   const margen = Math.max(1, data.margen || 50);
   const breakeven = Math.round(totalFijos / (margen / 100));
   const breakevenAnual = breakeven * 12;
+  const categorias = [...new Set(data.gastos.map(g => g.categoria).filter(Boolean))].sort();
+  const getFact = (mk) => { const m = data.meses[mk] || {}; return m.cerrado ? (m.facReal || 0) : (m.facProy || 0); };
+  const getContUF = (mk) => { const m = data.meses[mk] || {}; return m.cerrado ? (m.contRealUF || 0) : (m.contProyUF || 0); };
 
-  const fmt = (n) => {
-    const sign = n < 0 ? "-" : "";
-    const a = Math.abs(n);
-    if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(1)}B`;
-    if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a % 1e6 === 0 ? 0 : 1)}M`;
-    if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(0)}K`;
-    return `${sign}$${a}`;
-  };
-  const fmtN = (n) => n.toLocaleString("es-CL");
-
+  // Actions
   const updateGasto = (id, field, val) => save({ ...data, gastos: data.gastos.map(g => g.id === id ? { ...g, [field]: val } : g) });
-  const addGasto = () => save({ ...data, gastos: [...data.gastos, { id: genId(), nombre: "", monto: 0 }] });
+  const addGasto = () => save({ ...data, gastos: [...data.gastos, { id: genId(), nombre: "", categoria: categorias[0] || "", monto: 0 }] });
   const delGasto = (id) => save({ ...data, gastos: data.gastos.filter(g => g.id !== id) });
   const updateMargen = (v) => save({ ...data, margen: v });
   const updateMes = (mk, field, val) => save({ ...data, meses: { ...data.meses, [mk]: { ...data.meses[mk], [field]: val } } });
   const resetData = () => { if (window.confirm("¿Restaurar datos originales del break-even?")) save(DEFAULT_BE); };
 
+  // Peso input helper
+  const PesoInp = ({ value, onChange, width, style: st2, dashed }) => {
+    const iid = `${value}-${width}`;
+    const editing = editId === iid;
+    return <input type="text" inputMode="numeric"
+      value={editing ? editVal : fmtP(value || 0)}
+      onFocus={() => { setEditId(iid); setEditVal(String(value || "")); }}
+      onChange={e => setEditVal(e.target.value.replace(/[^0-9]/g, ""))}
+      onBlur={() => { onChange(parseInt(editVal) || 0); setEditId(null); }}
+      style={{ width: width || 80, padding: "6px 4px", borderRadius: 6, border: dashed ? "1px dashed rgba(255,255,255,.08)" : "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: dashed ? "#999" : "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box", ...st2 }} />;
+  };
+
   const cs = { card: { padding: "12px 16px", borderRadius: 10, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.06)" }, lbl: { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }, big: { fontSize: 28, fontWeight: 800, color } };
 
   // Resumen anual
-  const totalFact = MESES_KEYS.reduce((a, m) => a + (data.meses[m]?.facturacion || 0), 0);
-  const totalContratos = MESES_KEYS.reduce((a, m) => a + (data.meses[m]?.contratos || 0), 0);
-  const mesesConDatos = MESES_KEYS.filter(m => (data.meses[m]?.facturacion || 0) > 0).length;
+  const totalFact = MESES_KEYS.reduce((a, mk) => a + getFact(mk), 0);
+  const totalContUF = MESES_KEYS.reduce((a, mk) => a + getContUF(mk), 0);
+  const mesesConDatos = MESES_KEYS.filter(mk => getFact(mk) > 0).length;
   const promMensual = mesesConDatos > 0 ? Math.round(totalFact / mesesConDatos) : 0;
-  const mesesSobreBE = MESES_KEYS.filter(m => (data.meses[m]?.facturacion || 0) >= breakeven).length;
-  const mesesBajoBE = MESES_KEYS.filter(m => (data.meses[m]?.facturacion || 0) > 0 && (data.meses[m]?.facturacion || 0) < breakeven).length;
+  const mesesSobreBE = MESES_KEYS.filter(mk => getFact(mk) >= breakeven).length;
+  const mesesBajoBE = MESES_KEYS.filter(mk => getFact(mk) > 0 && getFact(mk) < breakeven).length;
+
+  // Gastos agrupados por categoría
+  const gastosByCat = {};
+  data.gastos.forEach(g => { const c = g.categoria || "Sin categoría"; if (!gastosByCat[c]) gastosByCat[c] = []; gastosByCat[c].push(g); });
+
+  const inpS = { padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box" };
+  const tds = { padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 };
 
   return <div>
+    <datalist id="be-cats">{categorias.map(c => <option key={c} value={c} />)}</datalist>
+
     {/* Headline */}
     <div style={{ ...cs.card, marginBottom: 16, textAlign: "center" }}>
       <div style={cs.lbl}>Break-even mensual calculado</div>
-      <div style={cs.big}>{fmt(breakeven)}/mes</div>
-      <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>Gastos fijos ({fmt(totalFijos)}) ÷ Margen ({margen}%) = {fmt(breakeven)}</div>
+      <div style={cs.big}>{fmtP(breakeven)}/mes</div>
+      <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>Gastos fijos ({fmtP(totalFijos)}) ÷ Margen ({margen}%) = {fmtP(breakeven)}</div>
     </div>
 
-    {/* Tabla gastos fijos */}
+    {/* Tabla gastos fijos con categorías */}
     <div style={{ marginBottom: 16 }}>
       <div style={{ ...cs.lbl, marginBottom: 8 }}>Gastos fijos mensuales</div>
-      {data.gastos.map(g => <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        {VInp(g.nombre, v => updateGasto(g.id, "nombre", v), "Concepto", { flex: 2 })}
-        <input type="number" value={g.monto || ""} onChange={e => updateGasto(g.id, "monto", parseInt(e.target.value) || 0)} placeholder="Monto" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box", textAlign: "right" }} />
-        <span style={{ fontSize: 11, color: "#666", minWidth: 60, textAlign: "right" }}>{fmt(g.monto || 0)}</span>
-        <button onClick={() => delGasto(g.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 14 }}>🗑</button>
-      </div>)}
+      {Object.entries(gastosByCat).map(([cat, items]) => {
+        const subtotal = items.reduce((a, g) => a + (g.monto || 0), 0);
+        return <div key={cat} style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: color, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingLeft: 4 }}>{cat}</div>
+          {items.map(g => <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5 }}>
+            {VInp(g.nombre, v => updateGasto(g.id, "nombre", v), "Concepto", { flex: 2 })}
+            <input list="be-cats" value={g.categoria || ""} onChange={e => updateGasto(g.id, "categoria", e.target.value)} placeholder="Categoría" style={{ ...inpS, flex: 1, fontSize: 11 }} />
+            <input type="text" inputMode="numeric"
+              value={editId === g.id ? editVal : fmtP(g.monto || 0)}
+              onFocus={() => { setEditId(g.id); setEditVal(String(g.monto || "")); }}
+              onChange={e => setEditVal(e.target.value.replace(/[^0-9]/g, ""))}
+              onBlur={() => { updateGasto(g.id, "monto", parseInt(editVal) || 0); setEditId(null); }}
+              style={{ ...inpS, flex: 1, textAlign: "right" }} />
+            <button onClick={() => delGasto(g.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 14 }}>🗑</button>
+          </div>)}
+          <div style={{ textAlign: "right", fontSize: 11, color: "#888", fontWeight: 600, paddingRight: 36 }}>Subtotal: {fmtP(subtotal)}</div>
+        </div>;
+      })}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
         {VBtn("+ Agregar gasto", addGasto, color, true)}
-        <div style={{ fontSize: 14, fontWeight: 700, color }}> Total: {fmt(totalFijos)}</div>
+        <div style={{ fontSize: 14, fontWeight: 700, color }}>Total: {fmtP(totalFijos)}</div>
       </div>
     </div>
 
@@ -947,59 +1007,103 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
         <span style={{ fontSize: 18, fontWeight: 800, color }}>{margen}%</span>
       </div>
       <input type="range" min={1} max={100} value={margen} onChange={e => updateMargen(parseInt(e.target.value))} style={{ width: "100%", accentColor: color }} />
-      <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>Por cada $1M vendido → ${fmtN(Math.round(1000000 * margen / 100))} de contribución</div>
+      <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>Por cada $1M vendido → {fmtP(Math.round(1000000 * margen / 100))} de contribución</div>
     </div>
 
-    {/* Card venta necesaria */}
+    {/* Valor UF */}
+    <div style={{ ...cs.card, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={cs.lbl}>Valor UF</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <input type="text" inputMode="numeric"
+            value={editId === "uf" ? editVal : fmtP(data.valorUF || 38500)}
+            onFocus={() => { setEditId("uf"); setEditVal(String(data.valorUF || 38500)); }}
+            onChange={e => setEditVal(e.target.value.replace(/[^0-9]/g, ""))}
+            onBlur={() => { save({ ...data, valorUF: parseInt(editVal) || 38500 }); setEditId(null); }}
+            style={{ ...inpS, width: 100, textAlign: "right", fontSize: 14, fontWeight: 700 }} />
+        </div>
+      </div>
+    </div>
+
+    {/* Cards venta necesaria */}
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-      <div style={cs.card}>
-        <div style={cs.lbl}>Venta necesaria / mes</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color }}>{fmt(breakeven)}</div>
-      </div>
-      <div style={cs.card}>
-        <div style={cs.lbl}>Venta necesaria / año</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color }}>{fmt(breakevenAnual)}</div>
-      </div>
+      <div style={cs.card}><div style={cs.lbl}>Venta necesaria / mes</div><div style={{ fontSize: 22, fontWeight: 800, color }}>{fmtP(breakeven)}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Venta necesaria / año</div><div style={{ fontSize: 22, fontWeight: 800, color }}>{fmtP(breakevenAnual)}</div></div>
+    </div>
+
+    {/* Toggle Real/Proyectado */}
+    <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+      {[{ k: "combined", l: "Todo" }, { k: "projected", l: "Proyectado" }, { k: "real", l: "Real" }].map(t =>
+        <button key={t.k} onClick={() => setViewMode(t.k)} style={{ padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", background: viewMode === t.k ? color + "33" : "rgba(255,255,255,.05)", color: viewMode === t.k ? color : "#888" }}>{t.l}</button>
+      )}
     </div>
 
     {/* Grilla mensual */}
     <div style={{ marginBottom: 16 }}>
       <div style={{ ...cs.lbl, marginBottom: 8 }}>Seguimiento mensual 2026</div>
       <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
-        <table style={{ borderCollapse: "collapse", minWidth: 900, width: "100%" }}>
-          <thead>
-            <tr>
-              <th style={{ padding: "6px 8px", fontSize: 10, color: "#888", textAlign: "left", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.08)" }}></th>
-              {MESES.map((m, i) => <th key={i} style={{ padding: "6px 8px", fontSize: 10, color: "#aaa", textAlign: "right", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.08)", fontWeight: 700 }}>{m}</th>)}
-            </tr>
-          </thead>
+        <table style={{ borderCollapse: "collapse", minWidth: 950, width: "100%" }}>
+          <thead><tr>
+            <th style={{ padding: "6px 8px", fontSize: 10, color: "#888", textAlign: "left", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.08)" }}></th>
+            {MESES.map((m, i) => {
+              const mk = MESES_KEYS[i]; const cerr = data.meses[mk]?.cerrado;
+              return <th key={i} style={{ padding: "4px 6px", fontSize: 10, color: "#aaa", textAlign: "center", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.08)", fontWeight: 700 }}>
+                <div>{m}</div>
+                <button onClick={() => updateMes(mk, "cerrado", !cerr)} style={{ fontSize: 10, background: "none", border: "none", cursor: "pointer", color: cerr ? "#81C784" : "#555", padding: 0 }}>{cerr ? "🔒" : "🔓"}</button>
+              </th>;
+            })}
+          </tr></thead>
           <tbody>
-            <tr>
-              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Facturación</td>
+            {/* Fact. Proyectado */}
+            {(viewMode === "combined" || viewMode === "projected") && <tr>
+              <td style={tds}>Fact. proy.</td>
               {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
-                <input type="number" value={data.meses[mk]?.facturacion || ""} onChange={e => updateMes(mk, "facturacion", parseInt(e.target.value) || 0)} placeholder="0" style={{ width: 68, padding: "6px 4px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box" }} />
+                <PesoInp value={data.meses[mk]?.facProy || 0} onChange={v => updateMes(mk, "facProy", v)} width={72} dashed />
               </td>)}
-            </tr>
-            <tr>
-              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Contratos</td>
+            </tr>}
+            {/* Fact. Real */}
+            {(viewMode === "combined" || viewMode === "real") && <tr>
+              <td style={tds}>Fact. real</td>
               {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
-                <input type="number" value={data.meses[mk]?.contratos || ""} onChange={e => updateMes(mk, "contratos", parseInt(e.target.value) || 0)} placeholder="0" style={{ width: 68, padding: "6px 4px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box" }} />
+                <PesoInp value={data.meses[mk]?.facReal || 0} onChange={v => updateMes(mk, "facReal", v)} width={72} />
               </td>)}
-            </tr>
+            </tr>}
+            {/* Contratos Proyectado UF */}
+            {(viewMode === "combined" || viewMode === "projected") && <tr>
+              <td style={tds}>Cont. proy. (UF)</td>
+              {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
+                <input type="number" step="0.1" value={data.meses[mk]?.contProyUF || ""} onChange={e => updateMes(mk, "contProyUF", parseFloat(e.target.value) || 0)} placeholder="0" style={{ width: 72, padding: "6px 4px", borderRadius: 6, border: "1px dashed rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#999", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box" }} />
+              </td>)}
+            </tr>}
+            {/* Contratos Real UF */}
+            {(viewMode === "combined" || viewMode === "real") && <tr>
+              <td style={tds}>Cont. real (UF)</td>
+              {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
+                <input type="number" step="0.1" value={data.meses[mk]?.contRealUF || ""} onChange={e => updateMes(mk, "contRealUF", parseFloat(e.target.value) || 0)} placeholder="0" style={{ width: 72, padding: "6px 4px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box" }} />
+              </td>)}
+            </tr>}
+            {/* Contratos CLP equiv */}
             <tr>
-              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Resultado</td>
+              <td style={tds}>Cont. ($)</td>
               {MESES_KEYS.map(mk => {
-                const f = data.meses[mk]?.facturacion || 0;
-                const r = f - breakeven;
-                const hasData = f > 0;
+                const uf = getContUF(mk); const clp = ufToCLP(uf);
+                return <td key={mk} style={{ padding: "6px 4px", fontSize: 10, color: clp > 0 ? "#888" : "#444", textAlign: "right" }}>{clp > 0 ? fmt(clp) : "—"}</td>;
+              })}
+            </tr>
+            {/* Resultado */}
+            <tr>
+              <td style={tds}>Resultado</td>
+              {MESES_KEYS.map(mk => {
+                const f = getFact(mk); const r = f - breakeven; const hasData = f > 0;
                 return <td key={mk} style={{ padding: "6px 4px", fontSize: 11, fontWeight: 700, textAlign: "right", color: !hasData ? "#444" : r >= 0 ? "#81C784" : "#E84855" }}>{hasData ? (r >= 0 ? "+" : "") + fmt(r) : "—"}</td>;
               })}
             </tr>
+            {/* Acum contratos UF */}
             <tr>
-              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Acum. contratos</td>
+              <td style={tds}>Acum. (UF)</td>
               {MESES_KEYS.map((mk, i) => {
-                const acc = MESES_KEYS.slice(0, i + 1).reduce((a, m) => a + (data.meses[m]?.contratos || 0), 0);
-                return <td key={mk} style={{ padding: "6px 4px", fontSize: 11, fontWeight: 600, textAlign: "right", color: acc > 0 ? "#aaa" : "#444" }}>{acc || "—"}</td>;
+                const acc = MESES_KEYS.slice(0, i + 1).reduce((a, m) => a + getContUF(m), 0);
+                return <td key={mk} style={{ padding: "6px 4px", fontSize: 11, fontWeight: 600, textAlign: "right", color: acc > 0 ? "#aaa" : "#444" }}>{acc > 0 ? fmtUF(acc) : "—"}</td>;
               })}
             </tr>
           </tbody>
@@ -1007,14 +1111,44 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
       </div>
     </div>
 
+    {/* Comparar meses */}
+    <div style={{ marginBottom: 16 }}>
+      {VBtn(comparing ? "✕ Cerrar comparación" : "Comparar meses", () => { setComparing(!comparing); if (comparing) setSelMonths([]); }, color, true)}
+      {comparing && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+        {MESES.map((m, i) => {
+          const mk = MESES_KEYS[i]; const sel = selMonths.includes(mk); const full = selMonths.length >= 3 && !sel;
+          return <button key={mk} onClick={() => { if (sel) setSelMonths(selMonths.filter(s => s !== mk)); else if (!full) setSelMonths([...selMonths, mk]); }}
+            style={{ padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: full ? "not-allowed" : "pointer", border: sel ? `2px solid ${color}` : "1px solid rgba(255,255,255,.1)", background: sel ? color + "22" : "rgba(0,0,0,.2)", color: sel ? color : "#888", opacity: full ? 0.4 : 1, fontFamily: "'DM Sans',sans-serif" }}>{m}</button>;
+        })}
+      </div>}
+      {comparing && selMonths.length >= 2 && <div style={{ display: "grid", gridTemplateColumns: `repeat(${selMonths.length}, 1fr)`, gap: 8, marginTop: 10 }}>
+        {selMonths.map(mk => {
+          const m = data.meses[mk] || {}; const fact = getFact(mk); const factP = m.facProy || 0; const factR = m.facReal || 0;
+          const contUF = getContUF(mk); const resultado = fact - breakeven;
+          const label = MESES[MESES_KEYS.indexOf(mk)];
+          return <div key={mk} style={{ ...cs.card }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color, marginBottom: 8, textAlign: "center" }}>{label} {m.cerrado ? "🔒" : ""}</div>
+            <div style={{ fontSize: 10, color: "#888", marginBottom: 2 }}>Facturación</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#e0e0e0" }}>{fmtP(fact)}</div>
+            {m.cerrado && factP > 0 && <div style={{ fontSize: 10, color: factR >= factP ? "#81C784" : "#E84855" }}>Proy: {fmtP(factP)} ({factR >= factP ? "+" : ""}{fmt(factR - factP)})</div>}
+            <div style={{ fontSize: 10, color: "#888", marginTop: 6, marginBottom: 2 }}>Contratos</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#e0e0e0" }}>{fmtUF(contUF)}</div>
+            <div style={{ fontSize: 10, color: "#666" }}>{fmtP(ufToCLP(contUF))}</div>
+            <div style={{ fontSize: 10, color: "#888", marginTop: 6, marginBottom: 2 }}>Resultado</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: resultado >= 0 ? "#81C784" : "#E84855" }}>{(resultado >= 0 ? "+" : "") + fmtP(resultado)}</div>
+          </div>;
+        })}
+      </div>}
+    </div>
+
     {/* Resumen anual */}
     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
-      <div style={cs.card}><div style={cs.lbl}>Total facturación</div><div style={{ fontSize: 16, fontWeight: 700, color: totalFact > 0 ? color : "#555" }}>{totalFact > 0 ? fmt(totalFact) : "—"}</div></div>
-      <div style={cs.card}><div style={cs.lbl}>Total contratos</div><div style={{ fontSize: 16, fontWeight: 700, color: totalContratos > 0 ? "#81C784" : "#555" }}>{totalContratos || "—"}</div></div>
-      <div style={cs.card}><div style={cs.lbl}>Promedio mensual</div><div style={{ fontSize: 16, fontWeight: 700, color: promMensual >= breakeven ? "#81C784" : promMensual > 0 ? "#E84855" : "#555" }}>{promMensual > 0 ? fmt(promMensual) : "—"}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Total facturación</div><div style={{ fontSize: 16, fontWeight: 700, color: totalFact > 0 ? color : "#555" }}>{totalFact > 0 ? fmtP(totalFact) : "—"}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Total contratos</div><div style={{ fontSize: 16, fontWeight: 700, color: totalContUF > 0 ? "#81C784" : "#555" }}>{totalContUF > 0 ? fmtUF(totalContUF) : "—"}</div>{totalContUF > 0 && <div style={{ fontSize: 10, color: "#666" }}>{fmtP(ufToCLP(totalContUF))}</div>}</div>
+      <div style={cs.card}><div style={cs.lbl}>Promedio mensual</div><div style={{ fontSize: 16, fontWeight: 700, color: promMensual >= breakeven ? "#81C784" : promMensual > 0 ? "#E84855" : "#555" }}>{promMensual > 0 ? fmtP(promMensual) : "—"}</div></div>
       <div style={cs.card}><div style={cs.lbl}>Meses sobre BE</div><div style={{ fontSize: 16, fontWeight: 700, color: "#81C784" }}>{mesesSobreBE}</div></div>
       <div style={cs.card}><div style={cs.lbl}>Meses bajo BE</div><div style={{ fontSize: 16, fontWeight: 700, color: mesesBajoBE > 0 ? "#E84855" : "#555" }}>{mesesBajoBE}</div></div>
-      <div style={cs.card}><div style={cs.lbl}>Meta anual</div><div style={{ fontSize: 16, fontWeight: 700, color }}>{fmt(breakevenAnual)}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Meta anual</div><div style={{ fontSize: 16, fontWeight: 700, color }}>{fmtP(breakevenAnual)}</div></div>
     </div>
 
     {/* Restaurar */}
@@ -1128,10 +1262,15 @@ function extractPillarInsights(ct, pillar) {
         const d = gj(dk, null);
         if (d) {
           filled++;
-          const totalFijos = (d.gastos || []).reduce((a, g) => a + (g.monto || 0), 0);
-          const margen = Math.max(1, d.margen || 50);
+          const md = typeof migrateBE === "function" ? migrateBE(d) : d;
+          const totalFijos = (md.gastos || []).reduce((a, g) => a + (g.monto || 0), 0);
+          const margen = Math.max(1, md.margen || 50);
           const be = Math.round(totalFijos / (margen / 100));
-          items[it.key] = { type: t, label: it.label, totalFijos, margen, breakeven: be, breakevenAnual: be * 12 };
+          const vUF = md.valorUF || 38500;
+          const mks = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+          let totFact = 0, totContUF = 0;
+          for (const mk of mks) { const m = md.meses?.[mk] || {}; totFact += m.cerrado ? (m.facReal || 0) : (m.facProy || 0); totContUF += m.cerrado ? (m.contRealUF || 0) : (m.contProyUF || 0); }
+          items[it.key] = { type: t, label: it.label, totalFijos, margen, breakeven: be, breakevenAnual: be * 12, valorUF: vUF, totalFacturacion: totFact, totalContratosUF: totContUF };
         }
       }
     } else if (tpl.sections) {
