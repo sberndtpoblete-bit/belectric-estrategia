@@ -261,7 +261,7 @@ const PILLARS = [
       { key: "flujoCaja", label: "Flujo de caja", desc: "Entradas y salidas", template: { sections: [{ key: "actual", label: "Estado actual", placeholder: "Visibilidad 30-60-90 días..." }, { key: "cobranza", label: "Cobranza", placeholder: "Cómo se cobran facturas..." }, { key: "reserva", label: "Reserva financiera", placeholder: "Meses de operación cubiertos..." }]}},
       { key: "costeo", label: "Costeo por proyecto", desc: "Costos directos y márgenes", template: { sections: [{ key: "metodologia", label: "Metodología", placeholder: "Materiales, MO, overhead..." }, { key: "seguimiento", label: "Seguimiento", placeholder: "Presupuesto vs real..." }, { key: "desviaciones", label: "Desviaciones", placeholder: "Qué pasa cuando se sale..." }]}},
       { key: "margenes", label: "Márgenes por línea", desc: "Rentabilidad por servicio", template: { sections: [{ key: "lineas", label: "Líneas de negocio", placeholder: "Cuáles y qué margen..." }, { key: "masRentable", label: "Más rentable", placeholder: "Cuál y por qué..." }]}},
-      { key: "breakeven", label: "Punto de equilibrio", desc: "Break-even point", template: { sections: [{ key: "costosFijos", label: "Costos fijos mensuales", placeholder: "Arriendos, sueldos..." }, { key: "ventaMinima", label: "Venta mínima mensual", placeholder: "Cuánto vender para no perder..." }]}},
+      { key: "breakeven", label: "Punto de equilibrio", desc: "Break-even point", template: { type: "breakeven", dataKey: "breakeven" }},
       { key: "cxc", label: "Cuentas por cobrar", desc: "Cobranza y juicios activos", template: { sections: [{ key: "juicios", label: "Juicios activos", placeholder: "Demandas ejecutivas, montos, estado..." }, { key: "pendientes", label: "Facturas pendientes", placeholder: "Facturas no vencidas y próximas a vencer..." }, { key: "politica", label: "Política de cobranza", placeholder: "Plazos, escalamiento, acciones..." }]}},
       { key: "proyecciones", label: "Proyecciones", desc: "Forecast financiero", template: { sections: [{ key: "corto", label: "Proyección 12 meses", placeholder: "Mes a mes..." }, { key: "largo", label: "Proyección 3 años", placeholder: "Escenarios..." }]}},
       { key: "kpiFinancieros", label: "KPIs financieros", desc: "Indicadores clave", template: { sections: [{ key: "indicadores", label: "KPIs que se miden", placeholder: "Margen bruto, EBITDA, ROI..." }, { key: "metas", label: "Metas del año", placeholder: "Objetivos numéricos..." }]}},
@@ -866,6 +866,162 @@ function StandardsEditor({ pid, ik, ct, onUpdate, color }) {
   </div>;
 }
 
+const MESES = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const MESES_KEYS = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const DEFAULT_BE = {
+  gastos: [
+    { id: "g1", nombre: "Maestros propios (15)", monto: 20000000 },
+    { id: "g2", nombre: "Admin / overhead", monto: 15000000 },
+    { id: "g3", nombre: "Arriendo + vehículos + servicios", monto: 2500000 },
+  ],
+  margen: 50,
+  meses: Object.fromEntries(MESES_KEYS.map(m => [m, { facturacion: 0, contratos: 0 }])),
+};
+
+function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-breakeven`;
+  const data = getJSON(dk, DEFAULT_BE);
+  const save = (d) => setJSON(dk, d);
+
+  const totalFijos = data.gastos.reduce((a, g) => a + (g.monto || 0), 0);
+  const margen = Math.max(1, data.margen || 50);
+  const breakeven = Math.round(totalFijos / (margen / 100));
+  const breakevenAnual = breakeven * 12;
+
+  const fmt = (n) => {
+    const sign = n < 0 ? "-" : "";
+    const a = Math.abs(n);
+    if (a >= 1e9) return `${sign}$${(a / 1e9).toFixed(1)}B`;
+    if (a >= 1e6) return `${sign}$${(a / 1e6).toFixed(a % 1e6 === 0 ? 0 : 1)}M`;
+    if (a >= 1e3) return `${sign}$${(a / 1e3).toFixed(0)}K`;
+    return `${sign}$${a}`;
+  };
+  const fmtN = (n) => n.toLocaleString("es-CL");
+
+  const updateGasto = (id, field, val) => save({ ...data, gastos: data.gastos.map(g => g.id === id ? { ...g, [field]: val } : g) });
+  const addGasto = () => save({ ...data, gastos: [...data.gastos, { id: genId(), nombre: "", monto: 0 }] });
+  const delGasto = (id) => save({ ...data, gastos: data.gastos.filter(g => g.id !== id) });
+  const updateMargen = (v) => save({ ...data, margen: v });
+  const updateMes = (mk, field, val) => save({ ...data, meses: { ...data.meses, [mk]: { ...data.meses[mk], [field]: val } } });
+  const resetData = () => { if (window.confirm("¿Restaurar datos originales del break-even?")) save(DEFAULT_BE); };
+
+  const cs = { card: { padding: "12px 16px", borderRadius: 10, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.06)" }, lbl: { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }, big: { fontSize: 28, fontWeight: 800, color } };
+
+  // Resumen anual
+  const totalFact = MESES_KEYS.reduce((a, m) => a + (data.meses[m]?.facturacion || 0), 0);
+  const totalContratos = MESES_KEYS.reduce((a, m) => a + (data.meses[m]?.contratos || 0), 0);
+  const mesesConDatos = MESES_KEYS.filter(m => (data.meses[m]?.facturacion || 0) > 0).length;
+  const promMensual = mesesConDatos > 0 ? Math.round(totalFact / mesesConDatos) : 0;
+  const mesesSobreBE = MESES_KEYS.filter(m => (data.meses[m]?.facturacion || 0) >= breakeven).length;
+  const mesesBajoBE = MESES_KEYS.filter(m => (data.meses[m]?.facturacion || 0) > 0 && (data.meses[m]?.facturacion || 0) < breakeven).length;
+
+  return <div>
+    {/* Headline */}
+    <div style={{ ...cs.card, marginBottom: 16, textAlign: "center" }}>
+      <div style={cs.lbl}>Break-even mensual calculado</div>
+      <div style={cs.big}>{fmt(breakeven)}/mes</div>
+      <div style={{ fontSize: 12, color: "#888", marginTop: 4 }}>Gastos fijos ({fmt(totalFijos)}) ÷ Margen ({margen}%) = {fmt(breakeven)}</div>
+    </div>
+
+    {/* Tabla gastos fijos */}
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...cs.lbl, marginBottom: 8 }}>Gastos fijos mensuales</div>
+      {data.gastos.map(g => <div key={g.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        {VInp(g.nombre, v => updateGasto(g.id, "nombre", v), "Concepto", { flex: 2 })}
+        <input type="number" value={g.monto || ""} onChange={e => updateGasto(g.id, "monto", parseInt(e.target.value) || 0)} placeholder="Monto" style={{ flex: 1, padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box", textAlign: "right" }} />
+        <span style={{ fontSize: 11, color: "#666", minWidth: 60, textAlign: "right" }}>{fmt(g.monto || 0)}</span>
+        <button onClick={() => delGasto(g.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 14 }}>🗑</button>
+      </div>)}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+        {VBtn("+ Agregar gasto", addGasto, color, true)}
+        <div style={{ fontSize: 14, fontWeight: 700, color }}> Total: {fmt(totalFijos)}</div>
+      </div>
+    </div>
+
+    {/* Slider margen */}
+    <div style={{ ...cs.card, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+        <div style={cs.lbl}>Margen de contribución</div>
+        <span style={{ fontSize: 18, fontWeight: 800, color }}>{margen}%</span>
+      </div>
+      <input type="range" min={1} max={100} value={margen} onChange={e => updateMargen(parseInt(e.target.value))} style={{ width: "100%", accentColor: color }} />
+      <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>Por cada $1M vendido → ${fmtN(Math.round(1000000 * margen / 100))} de contribución</div>
+    </div>
+
+    {/* Card venta necesaria */}
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+      <div style={cs.card}>
+        <div style={cs.lbl}>Venta necesaria / mes</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color }}>{fmt(breakeven)}</div>
+      </div>
+      <div style={cs.card}>
+        <div style={cs.lbl}>Venta necesaria / año</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color }}>{fmt(breakevenAnual)}</div>
+      </div>
+    </div>
+
+    {/* Grilla mensual */}
+    <div style={{ marginBottom: 16 }}>
+      <div style={{ ...cs.lbl, marginBottom: 8 }}>Seguimiento mensual 2026</div>
+      <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <table style={{ borderCollapse: "collapse", minWidth: 900, width: "100%" }}>
+          <thead>
+            <tr>
+              <th style={{ padding: "6px 8px", fontSize: 10, color: "#888", textAlign: "left", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.08)" }}></th>
+              {MESES.map((m, i) => <th key={i} style={{ padding: "6px 8px", fontSize: 10, color: "#aaa", textAlign: "right", whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.08)", fontWeight: 700 }}>{m}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Facturación</td>
+              {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
+                <input type="number" value={data.meses[mk]?.facturacion || ""} onChange={e => updateMes(mk, "facturacion", parseInt(e.target.value) || 0)} placeholder="0" style={{ width: 68, padding: "6px 4px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box" }} />
+              </td>)}
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Contratos</td>
+              {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
+                <input type="number" value={data.meses[mk]?.contratos || ""} onChange={e => updateMes(mk, "contratos", parseInt(e.target.value) || 0)} placeholder="0" style={{ width: 68, padding: "6px 4px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box" }} />
+              </td>)}
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Resultado</td>
+              {MESES_KEYS.map(mk => {
+                const f = data.meses[mk]?.facturacion || 0;
+                const r = f - breakeven;
+                const hasData = f > 0;
+                return <td key={mk} style={{ padding: "6px 4px", fontSize: 11, fontWeight: 700, textAlign: "right", color: !hasData ? "#444" : r >= 0 ? "#81C784" : "#E84855" }}>{hasData ? (r >= 0 ? "+" : "") + fmt(r) : "—"}</td>;
+              })}
+            </tr>
+            <tr>
+              <td style={{ padding: "6px 8px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap", fontWeight: 600 }}>Acum. contratos</td>
+              {MESES_KEYS.map((mk, i) => {
+                const acc = MESES_KEYS.slice(0, i + 1).reduce((a, m) => a + (data.meses[m]?.contratos || 0), 0);
+                return <td key={mk} style={{ padding: "6px 4px", fontSize: 11, fontWeight: 600, textAlign: "right", color: acc > 0 ? "#aaa" : "#444" }}>{acc || "—"}</td>;
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* Resumen anual */}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+      <div style={cs.card}><div style={cs.lbl}>Total facturación</div><div style={{ fontSize: 16, fontWeight: 700, color: totalFact > 0 ? color : "#555" }}>{totalFact > 0 ? fmt(totalFact) : "—"}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Total contratos</div><div style={{ fontSize: 16, fontWeight: 700, color: totalContratos > 0 ? "#81C784" : "#555" }}>{totalContratos || "—"}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Promedio mensual</div><div style={{ fontSize: 16, fontWeight: 700, color: promMensual >= breakeven ? "#81C784" : promMensual > 0 ? "#E84855" : "#555" }}>{promMensual > 0 ? fmt(promMensual) : "—"}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Meses sobre BE</div><div style={{ fontSize: 16, fontWeight: 700, color: "#81C784" }}>{mesesSobreBE}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Meses bajo BE</div><div style={{ fontSize: 16, fontWeight: 700, color: mesesBajoBE > 0 ? "#E84855" : "#555" }}>{mesesBajoBE}</div></div>
+      <div style={cs.card}><div style={cs.lbl}>Meta anual</div><div style={{ fontSize: 16, fontWeight: 700, color }}>{fmt(breakevenAnual)}</div></div>
+    </div>
+
+    {/* Restaurar */}
+    <div style={{ textAlign: "center" }}>{VBtn("↩ Restaurar datos originales", resetData, "#888", true)}</div>
+  </div>;
+}
+
 function SuppliersEditor({ pid, ik, ct, onUpdate, color }) {
   const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
   const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
@@ -968,6 +1124,15 @@ function extractPillarInsights(ct, pillar) {
       } else if (t === "cards") {
         const d = gj(dk, []);
         if (d.length) { filled++; items[it.key] = { type: t, label: it.label, count: d.length }; }
+      } else if (t === "breakeven") {
+        const d = gj(dk, null);
+        if (d) {
+          filled++;
+          const totalFijos = (d.gastos || []).reduce((a, g) => a + (g.monto || 0), 0);
+          const margen = Math.max(1, d.margen || 50);
+          const be = Math.round(totalFijos / (margen / 100));
+          items[it.key] = { type: t, label: it.label, totalFijos, margen, breakeven: be, breakevenAnual: be * 12 };
+        }
       }
     } else if (tpl.sections) {
       const secs = tpl.sections;
@@ -997,9 +1162,9 @@ function suggestKPIs(perspKey, insights, ct) {
     // Pilar 5: Finanzas
     const be = find(5, "breakeven");
     if (be) {
-      const vmTxt = textPreview(5, "breakeven", "ventaMinima");
-      const m = (vmTxt.match(/\$[\d.,]+[MmKk]?/) || [])[0] || firstMoney(5, "breakeven") || "$74M";
-      sugs.push({ objetivo: `Superar punto de equilibrio (${m}/mes)`, indicador: "Facturacion mensual vs break-even", meta: `Nunca bajo ${m}/mes`, iniciativa: "Forecast a 90 dias + alerta si baja de umbral", source: "Pilar 5: Break-even", confidence: "media" });
+      const fmt = (n) => n >= 1e6 ? `$${(n / 1e6).toFixed(n % 1e6 === 0 ? 0 : 1)}M` : `$${n}`;
+      const m = be.breakeven ? fmt(be.breakeven) : "$74M";
+      sugs.push({ objetivo: `Superar punto de equilibrio (${m}/mes)`, indicador: "Facturacion mensual vs break-even", meta: `Nunca bajo ${m}/mes`, iniciativa: "Forecast a 90 dias + alerta si baja de umbral", source: "Pilar 5: Break-even", confidence: "alta" });
     }
     const fc = find(5, "flujoCaja");
     if (fc) {
@@ -1211,6 +1376,7 @@ export default function App() {
           {tplType === "processflow" && <ProcessFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "projectflow" && <ProjectFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "breakeven" && <BreakevenEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
         </div>
       </div>;
@@ -1342,19 +1508,67 @@ export default function App() {
       <div style={{ padding: "0 20px 40px" }}>
         {CC.scalingPhases.map(ph => {
           const open = ep === ph.id;
+          const actChecks = pn[`${ph.id}-actions`] || {};
+          const hireChecks = pn[`${ph.id}-hires`] || {};
+          const kpiVals = pn[`${ph.id}-kpis`] || {};
+          const triggerDone = pn[`${ph.id}-trigger`] || false;
+          const totalItems = ph.actions.length + ph.hires.length;
+          const doneItems = Object.values(actChecks).filter(Boolean).length + Object.values(hireChecks).filter(Boolean).length;
+          const allDone = totalItems > 0 && doneItems === totalItems;
           return <div key={ph.id} style={{ marginBottom: 12, borderRadius: 14, border: `1px solid ${open ? ph.color + "44" : "rgba(255,255,255,.06)"}`, background: "rgba(255,255,255,.03)", overflow: "hidden" }}>
             <button onClick={() => setEp(open ? null : ph.id)} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", padding: 16, background: "none", border: "none", cursor: "pointer", color: "#f0f0f0", fontFamily: "'DM Sans',sans-serif", textAlign: "left" }}>
               <span style={{ fontSize: 24 }}>{ph.icon}</span>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 700, color: ph.color }}>{ph.name}</div><div style={{ fontSize: 11, color: "#888" }}>{ph.timeline} · {ph.people}</div></div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: ph.color }}>{ph.name}</span>
+                  {totalItems > 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 10, background: allDone ? "#81C78433" : "rgba(255,255,255,.08)", color: allDone ? "#81C784" : "#888" }}>{doneItems}/{totalItems}</span>}
+                </div>
+                <div style={{ fontSize: 11, color: "#888" }}>{ph.timeline} · {ph.people}</div>
+              </div>
               <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 800, color: ph.color }}>{ph.net}</div></div>
             </button>
             {open && <div style={{ padding: "0 16px 16px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-                {ph.kpis.map(k => <div key={k.label} style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.05)" }}><div style={{ fontSize: 10, color: "#888", marginBottom: 2 }}>{k.label}</div><div style={{ fontSize: 14, fontWeight: 700, color: ph.color }}>{k.target}</div>{k.current && <div style={{ fontSize: 10, color: "#666" }}>Actual: {k.current}</div>}</div>)}
+                {ph.kpis.map((k, i) => {
+                  const val = kpiVals[i] !== undefined ? kpiVals[i] : "";
+                  const hasVal = val !== "";
+                  return <div key={k.label} style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.05)" }}>
+                    <div style={{ fontSize: 10, color: "#888", marginBottom: 2 }}>{k.label}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: ph.color }}>{k.target}</div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: hasVal ? "#81C784" : "#555", flexShrink: 0 }} />
+                      <input value={val} onChange={e => uPn(`${ph.id}-kpis`, { ...kpiVals, [i]: e.target.value })} placeholder={k.current || "Actual..."} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.2)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", width: "100%", boxSizing: "border-box" }} />
+                    </div>
+                  </div>;
+                })}
               </div>
-              <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Acciones</div>{ph.actions.map((a, i) => <div key={i} style={{ display: "flex", gap: 8, marginBottom: 6, fontSize: 13, color: "#ccc" }}><span style={{ color: ph.color, fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span>{a}</div>)}</div>
-              {ph.hires.length > 0 && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Contrataciones</div>{ph.hires.map((h, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 13 }}>👤 <span style={{ color: "#ccc" }}>{h}</span></div>)}</div>}
-              <div style={{ padding: "10px 12px", borderRadius: 8, background: ph.color + "11", border: `1px solid ${ph.color}22`, marginBottom: 12 }}><div style={{ fontSize: 10, color: ph.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>🎯 Gatillo para avanzar</div><div style={{ fontSize: 13, color: "#ddd" }}>{ph.trigger}</div></div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Acciones</div>
+                {ph.actions.map((a, i) => {
+                  const checked = actChecks[i] || false;
+                  return <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6, fontSize: 13 }}>
+                    <input type="checkbox" checked={checked} onChange={e => uPn(`${ph.id}-actions`, { ...actChecks, [i]: e.target.checked })} style={{ marginTop: 3, accentColor: ph.color, cursor: "pointer", flexShrink: 0 }} />
+                    <span style={{ color: checked ? "#666" : "#ccc", textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.5 : 1 }}>{a}</span>
+                  </div>;
+                })}
+              </div>
+              {ph.hires.length > 0 && <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Contrataciones</div>
+                {ph.hires.map((h, i) => {
+                  const checked = hireChecks[i] || false;
+                  return <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, fontSize: 13 }}>
+                    <input type="checkbox" checked={checked} onChange={e => uPn(`${ph.id}-hires`, { ...hireChecks, [i]: e.target.checked })} style={{ accentColor: ph.color, cursor: "pointer", flexShrink: 0 }} />
+                    <span style={{ color: checked ? "#666" : "#ccc", textDecoration: checked ? "line-through" : "none", opacity: checked ? 0.5 : 1 }}>👤 {h}</span>
+                  </div>;
+                })}
+              </div>}
+              <div style={{ padding: "10px 12px", borderRadius: 8, background: triggerDone ? "#81C78411" : ph.color + "11", border: `1px solid ${triggerDone ? "#81C78422" : ph.color + "22"}`, marginBottom: 12 }}>
+                <div style={{ fontSize: 10, color: triggerDone ? "#81C784" : ph.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>🎯 Gatillo para avanzar</div>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                  <input type="checkbox" checked={triggerDone} onChange={e => uPn(`${ph.id}-trigger`, e.target.checked)} style={{ marginTop: 3, accentColor: "#81C784", cursor: "pointer", flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: triggerDone ? "#81C784" : "#ddd", textDecoration: triggerDone ? "line-through" : "none" }}>{ph.trigger}</span>
+                </div>
+              </div>
               <div><div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Mis notas</div><textarea value={pn[ph.id] || ""} onChange={e => uPn(ph.id, e.target.value)} placeholder="Avances, decisiones, pendientes..." style={{ width: "100%", minHeight: 70, padding: "10px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.25)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} /></div>
             </div>}
           </div>;
