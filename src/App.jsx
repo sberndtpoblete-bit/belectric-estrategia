@@ -943,15 +943,14 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
   const resetData = () => { if (window.confirm("¿Restaurar datos originales del break-even?")) save(DEFAULT_BE); };
 
   // Peso input helper
-  const PesoInp = ({ value, onChange, width, style: st2, dashed }) => {
-    const iid = `${value}-${width}`;
-    const editing = editId === iid;
-    return <input type="text" inputMode="numeric"
+  const PesoInp = ({ uid, value, onChange, width, style: st2, dashed, readOnly }) => {
+    const editing = editId === uid;
+    return <input type="text" inputMode="numeric" readOnly={readOnly}
       value={editing ? editVal : fmtP(value || 0)}
-      onFocus={() => { setEditId(iid); setEditVal(String(value || "")); }}
-      onChange={e => setEditVal(e.target.value.replace(/[^0-9]/g, ""))}
-      onBlur={() => { onChange(parseInt(editVal) || 0); setEditId(null); }}
-      style={{ width: width || 80, padding: "6px 4px", borderRadius: 6, border: dashed ? "1px dashed rgba(255,255,255,.08)" : "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: dashed ? "#999" : "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box", ...st2 }} />;
+      onFocus={() => { if (readOnly) return; setEditId(uid); setEditVal(String(value || "")); }}
+      onChange={e => { if (readOnly) return; setEditVal(e.target.value.replace(/[^0-9]/g, "")); }}
+      onBlur={() => { if (readOnly) return; onChange(parseInt(editVal) || 0); setEditId(null); }}
+      style={{ width: width || 80, padding: "6px 4px", borderRadius: 6, border: dashed ? "1px dashed rgba(255,255,255,.08)" : "1px solid rgba(255,255,255,.08)", background: readOnly ? "rgba(0,0,0,.15)" : "rgba(0,0,0,.3)", color: readOnly ? "#555" : dashed ? "#999" : "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", textAlign: "right", boxSizing: "border-box", cursor: readOnly ? "not-allowed" : "text", ...st2 }} />;
   };
 
   const cs = { card: { padding: "12px 16px", borderRadius: 10, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.06)" }, lbl: { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }, big: { fontSize: 28, fontWeight: 800, color } };
@@ -996,8 +995,8 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
               onBlur={() => { updateGasto(g.id, "categoria", editCatVal); setEditCatId(null); }}
               placeholder="Categoría" style={{ ...inpS, flex: 1, fontSize: 11 }} />
             <input type="text" inputMode="numeric"
-              value={editId === g.id ? editVal : fmtP(g.monto || 0)}
-              onFocus={() => { setEditId(g.id); setEditVal(String(g.monto || "")); }}
+              value={editId === "gm-" + g.id ? editVal : fmtP(g.monto || 0)}
+              onFocus={() => { setEditId("gm-" + g.id); setEditVal(String(g.monto || "")); }}
               onChange={e => setEditVal(e.target.value.replace(/[^0-9]/g, ""))}
               onBlur={() => { updateGasto(g.id, "monto", parseInt(editVal) || 0); setEditId(null); }}
               style={{ ...inpS, flex: 1, textAlign: "right" }} />
@@ -1104,6 +1103,48 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
       </div>;
     })()}
 
+    {/* Indicador contrato necesario vs adjudicado */}
+    {(() => {
+      const pct = data.pctGastosGen || 12;
+      const dur = data.duracionContrato || 18;
+      const catSel2 = data.catGastosGen || "";
+      const ggSum = catSel2 ? data.gastos.filter(g => g.categoria === catSel2).reduce((a, g) => a + (g.monto || 0), 0) : 0;
+      const ventaAnual2 = pct > 0 && ggSum > 0 ? Math.round(ggSum * 12 / (pct / 100)) : 0;
+      const contNecCLP = ventaAnual2 > 0 ? Math.round(ventaAnual2 * (dur / 12)) : 0;
+      const contNecUF = data.valorUF > 0 ? Math.round(contNecCLP / data.valorUF * 10) / 10 : 0;
+      const adjUF = totalContUF;
+      const adjCLP = ufToCLP(adjUF);
+      const faltaUF = Math.max(0, contNecUF - adjUF);
+      const faltaCLP = Math.max(0, contNecCLP - adjCLP);
+      const pctAvance = contNecUF > 0 ? Math.min(100, Math.round(adjUF / contNecUF * 100)) : 0;
+      if (contNecCLP <= 0) return null;
+      return <div style={{ ...cs.card, marginBottom: 16, border: `1px solid ${adjUF >= contNecUF ? "#81C784" : "#E84855"}33` }}>
+        <div style={{ ...cs.lbl, marginBottom: 8 }}>Contrato necesario vs adjudicado</div>
+        {/* Barra de progreso */}
+        <div style={{ background: "rgba(255,255,255,.06)", borderRadius: 8, height: 28, overflow: "hidden", position: "relative", marginBottom: 10 }}>
+          <div style={{ height: "100%", borderRadius: 8, background: adjUF >= contNecUF ? "linear-gradient(90deg, #81C784, #4CAF50)" : `linear-gradient(90deg, ${color}, ${color}88)`, width: pctAvance + "%", transition: "width .4s ease" }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,.5)" }}>{pctAvance}%</div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div style={{ padding: 10, borderRadius: 8, background: "rgba(0,0,0,.2)", textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "#888", textTransform: "uppercase", marginBottom: 2 }}>Necesario</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color }}>{fmtUF(contNecUF)}</div>
+            <div style={{ fontSize: 10, color: "#666" }}>{fmtP(contNecCLP)}</div>
+          </div>
+          <div style={{ padding: 10, borderRadius: 8, background: "rgba(0,0,0,.2)", textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "#888", textTransform: "uppercase", marginBottom: 2 }}>Adjudicado</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#81C784" }}>{fmtUF(adjUF)}</div>
+            <div style={{ fontSize: 10, color: "#666" }}>{fmtP(adjCLP)}</div>
+          </div>
+          <div style={{ padding: 10, borderRadius: 8, background: "rgba(0,0,0,.2)", textAlign: "center" }}>
+            <div style={{ fontSize: 9, color: "#888", textTransform: "uppercase", marginBottom: 2 }}>{faltaUF > 0 ? "Falta" : "Superávit"}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: faltaUF > 0 ? "#E84855" : "#81C784" }}>{faltaUF > 0 ? fmtUF(faltaUF) : fmtUF(Math.abs(contNecUF - adjUF))}</div>
+            <div style={{ fontSize: 10, color: "#666" }}>{faltaUF > 0 ? fmtP(faltaCLP) : fmtP(Math.abs(contNecCLP - adjCLP))}</div>
+          </div>
+        </div>
+      </div>;
+    })()}
+
     {/* Toggle Real/Proyectado */}
     <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
       {[{ k: "combined", l: "Todo" }, { k: "projected", l: "Proyectado" }, { k: "real", l: "Real" }].map(t =>
@@ -1130,15 +1171,15 @@ function BreakevenEditor({ pid, ik, ct, onUpdate, color }) {
             {/* Fact. Proyectado */}
             {(viewMode === "combined" || viewMode === "projected") && <tr>
               <td style={tds}>Fact. proy.</td>
-              {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
-                <PesoInp value={data.meses[mk]?.facProy || 0} onChange={v => updateMes(mk, "facProy", v)} width={72} dashed />
-              </td>)}
+              {MESES_KEYS.map(mk => { const cerr = data.meses[mk]?.cerrado; return <td key={mk} style={{ padding: "4px 2px" }}>
+                <PesoInp uid={"fp-" + mk} value={data.meses[mk]?.facProy || 0} onChange={v => updateMes(mk, "facProy", v)} width={72} dashed readOnly={cerr} />
+              </td>; })}
             </tr>}
             {/* Fact. Real */}
             {(viewMode === "combined" || viewMode === "real") && <tr>
               <td style={tds}>Fact. real</td>
               {MESES_KEYS.map(mk => <td key={mk} style={{ padding: "4px 2px" }}>
-                <PesoInp value={data.meses[mk]?.facReal || 0} onChange={v => updateMes(mk, "facReal", v)} width={72} />
+                <PesoInp uid={"fr-" + mk} value={data.meses[mk]?.facReal || 0} onChange={v => updateMes(mk, "facReal", v)} width={72} />
               </td>)}
             </tr>}
             {/* Contratos Proyectado UF */}
