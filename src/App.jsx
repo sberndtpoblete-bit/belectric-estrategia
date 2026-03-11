@@ -942,15 +942,16 @@ function ComercialEditor({ pid, ik, ct, onUpdate, color }) {
 
   const [tab, setTab] = useState(0);
   const [filtroEstado, setFiltroEstado] = useState("Todos");
-  const tabs = ["Cotizaciones", "En Estudio", "Proyectos", "Status", "Dashboard"];
+  const tabs = [{ label: "Cotizaciones", icon: "📋" }, { label: "En Estudio", icon: "🔍" }, { label: "Proyectos", icon: "🏗️" }, { label: "Status", icon: "📊" }, { label: "Dashboard", icon: "🎯" }];
 
-  const cs = { card: { padding: "12px 16px", borderRadius: 10, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.06)" }, lbl: { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }, big: { fontSize: 28, fontWeight: 800, color } };
-  const inpS = { padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box" };
-  const tds = { padding: "4px 6px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap" };
-  const thS = { padding: "6px 6px", fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.1)" };
+  const cs = { card: { padding: "14px 18px", borderRadius: 12, background: "linear-gradient(135deg, rgba(0,0,0,.25), rgba(0,0,0,.15))", border: "1px solid rgba(255,255,255,.06)", backdropFilter: "blur(10px)" }, lbl: { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 } };
+  const inpS = { padding: "7px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box", transition: "border-color .2s" };
+  const tds = { padding: "8px 6px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap" };
+  const thS = { padding: "10px 6px", fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 0.8, whiteSpace: "nowrap", borderBottom: `2px solid ${color}22`, textAlign: "left", fontWeight: 700 };
+  const tableWrap = { ...cs.card, padding: 0, overflow: "hidden" };
+  const tableS = { width: "100%", borderCollapse: "collapse" };
 
   const fmtUF = (n) => (n || 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const fmtPct = (n) => ((n || 0) * 100).toFixed(1) + "%";
 
   // Cotizaciones helpers
   const updateCot = (id, field, val) => save({ ...data, cotizaciones: data.cotizaciones.map(c => c.id === id ? { ...c, [field]: val } : c) });
@@ -977,223 +978,296 @@ function ComercialEditor({ pid, ik, ct, onUpdate, color }) {
   // Dashboard calcs
   const totalPresUF = data.cotizaciones.reduce((a, c) => a + (c.presupuestoUF || 0), 0);
   const totalCot = data.cotizaciones.length;
-  const adjudicados = data.cotizaciones.filter(c => c.estado === "Adjudicado").length;
+  const cotAdj = data.cotizaciones.filter(c => c.estado === "Adjudicado");
+  const adjudicados = cotAdj.length;
   const noAdj = data.cotizaciones.filter(c => c.estado === "No Adjudicado").length;
   const pendientes = data.cotizaciones.filter(c => c.estado === "Aun no definido").length;
   const tasaAdj = totalCot > 0 ? Math.round(adjudicados / totalCot * 100) : 0;
+  const allProys = [...data.proyectos];
+  // Merge adjudicados from cotizaciones that aren't already in proyectos
+  const proyNames = new Set(data.proyectos.map(p => p.proyecto.toUpperCase()));
+  const adjAsProys = cotAdj.filter(c => c.presupuestoUF > 0 && !proyNames.has(c.proyecto.toUpperCase())).map(c => ({
+    id: "adj-" + c.id, idProy: c.num, proyecto: c.proyecto, estado: "Adjudicado", constructora: c.cliente, proyectista: "", anio: c.fecha ? parseInt(c.fecha.slice(0, 4)) : 2025,
+    subterraneos: 0, pisos: 0, deptos: 0, supTotal: 0, tiempoMeses: 0, costoM2UF: 0, totalUF: c.presupuestoUF, _fromCot: true, _gg: c.gg, _ut: c.utilidad
+  }));
   const proysEjec = data.proyectos.filter(p => p.estado === "Ejecución").length;
   const proysProp = data.proyectos.filter(p => p.estado === "Propuesta").length;
   const totalDeptos = data.proyectos.reduce((a, p) => a + (p.deptos || 0), 0);
-  const adjUFTotal = data.cotizaciones.filter(c => c.estado === "Adjudicado").reduce((a, c) => a + (c.presupuestoUF || 0), 0);
+  const adjUFTotal = cotAdj.reduce((a, c) => a + (c.presupuestoUF || 0), 0);
 
   const estadoColor = (e) => e === "Adjudicado" || e === "Adjudicada" ? "#81C784" : e === "No Adjudicado" || e === "Perdida" ? "#E84855" : "#888";
   const difColor = (d) => d === "Baja" ? "#81C784" : d === "Alta" ? "#E84855" : "#F7B32B";
 
-  const selectS = { ...inpS, appearance: "none", WebkitAppearance: "none", paddingRight: 20, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23888' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center", cursor: "pointer" };
+  const selectS = { ...inpS, appearance: "none", WebkitAppearance: "none", paddingRight: 22, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23888' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center", cursor: "pointer" };
+  const delBtn = { background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 16, opacity: 0.6, padding: "4px 8px", borderRadius: 4 };
+  const badge = (text, bg, fg) => <span style={{ padding: "3px 10px", borderRadius: 6, fontSize: 10, fontWeight: 700, background: bg, color: fg, letterSpacing: 0.3 }}>{text}</span>;
+
+  // Summary bar helper
+  const SummaryBar = ({ items }) => <div style={{ display: "flex", gap: 16, padding: "12px 18px", borderTop: "1px solid rgba(255,255,255,.06)", background: "rgba(0,0,0,.1)", alignItems: "center", flexWrap: "wrap" }}>
+    {items.map((it, i) => <span key={i} style={{ fontSize: 11, color: "#888" }}>{it.label}: <b style={{ color: it.color || color }}>{it.val}</b></span>)}
+  </div>;
 
   return <div>
     {/* Tab bar */}
-    <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>
-      {tabs.map((t, i) => <button key={t} onClick={() => setTab(i)} style={{ padding: "6px 14px", borderRadius: 8, border: tab === i ? `1px solid ${color}` : "1px solid rgba(255,255,255,.08)", background: tab === i ? `${color}22` : "rgba(0,0,0,.2)", color: tab === i ? color : "#888", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{t}</button>)}
+    <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+      {tabs.map((t, i) => <button key={t.label} onClick={() => setTab(i)} style={{ padding: "8px 16px", borderRadius: 10, border: tab === i ? `1px solid ${color}66` : "1px solid rgba(255,255,255,.06)", background: tab === i ? `linear-gradient(135deg, ${color}25, ${color}10)` : "rgba(0,0,0,.15)", color: tab === i ? color : "#777", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", transition: "all .2s", display: "flex", gap: 6, alignItems: "center" }}><span style={{ fontSize: 13 }}>{t.icon}</span>{t.label}</button>)}
       <div style={{ flex: 1 }} />
-      <button onClick={resetData} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.06)", background: "rgba(0,0,0,.15)", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>↩ Restaurar</button>
+      <button onClick={resetData} style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.06)", background: "rgba(0,0,0,.15)", color: "#555", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>↩ Restaurar</button>
     </div>
 
     {/* TAB 0: Cotizaciones Enviadas */}
     {tab === 0 && <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Filtrar:</span>
-        {["Todos", "Adjudicado", "No Adjudicado", "Aun no definido"].map(f => <button key={f} onClick={() => setFiltroEstado(f)} style={{ padding: "3px 10px", borderRadius: 6, border: filtroEstado === f ? `1px solid ${color}` : "1px solid rgba(255,255,255,.06)", background: filtroEstado === f ? `${color}22` : "transparent", color: filtroEstado === f ? color : "#888", fontSize: 10, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{f}</button>)}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700 }}>Filtrar:</span>
+        {["Todos", "Adjudicado", "No Adjudicado", "Aun no definido"].map(f => {
+          const cnt = f === "Todos" ? totalCot : data.cotizaciones.filter(c => c.estado === f).length;
+          return <button key={f} onClick={() => setFiltroEstado(f)} style={{ padding: "4px 12px", borderRadius: 8, border: filtroEstado === f ? `1px solid ${color}66` : "1px solid rgba(255,255,255,.06)", background: filtroEstado === f ? `${color}22` : "transparent", color: filtroEstado === f ? color : "#777", fontSize: 10, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", fontWeight: 600 }}>{f} <span style={{ opacity: 0.6 }}>({cnt})</span></button>;
+        })}
       </div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
-          <thead><tr>
-            {["N.º", "Proyecto", "Cliente", "Contacto", "Tipo", "Fecha", "Estado", "Presup. UF", "GG%", "Ut%", "Margen%", "Obs", ""].map(h => <th key={h} style={thS}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {data.cotizaciones.filter(c => filtroEstado === "Todos" || c.estado === filtroEstado).map(c => <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-              <td style={tds}><input value={c.num} onChange={e => updateCot(c.id, "num", e.target.value)} style={{ ...inpS, width: 50 }} /></td>
-              <td style={tds}><input value={c.proyecto} onChange={e => updateCot(c.id, "proyecto", e.target.value)} style={{ ...inpS, width: 160 }} /></td>
-              <td style={tds}><input value={c.cliente} onChange={e => updateCot(c.id, "cliente", e.target.value)} style={{ ...inpS, width: 100 }} /></td>
-              <td style={tds}><input value={c.contacto} onChange={e => updateCot(c.id, "contacto", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
-              <td style={tds}><span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: c.tipo === "Antiguo" ? "rgba(107,76,154,.3)" : "rgba(45,125,210,.3)", color: c.tipo === "Antiguo" ? "#B39DDB" : "#64B5F6" }}>{c.tipo}</span></td>
-              <td style={tds}><input type="date" value={c.fecha} onChange={e => updateCot(c.id, "fecha", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
-              <td style={tds}><select value={c.estado} onChange={e => updateCot(c.id, "estado", e.target.value)} style={{ ...selectS, width: 120, color: estadoColor(c.estado) }}>
-                <option value="Adjudicado">Adjudicado</option><option value="No Adjudicado">No Adjudicado</option><option value="Aun no definido">Aun no definido</option>
-              </select></td>
-              <td style={tds}><input type="number" value={c.presupuestoUF || ""} onChange={e => updateCot(c.id, "presupuestoUF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 80, textAlign: "right" }} /></td>
-              <td style={tds}><input type="number" value={c.gg || ""} onChange={e => updateCot(c.id, "gg", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 45, textAlign: "right" }} /></td>
-              <td style={tds}><input type="number" value={c.utilidad || ""} onChange={e => updateCot(c.id, "utilidad", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 45, textAlign: "right" }} /></td>
-              <td style={{ ...tds, color, fontWeight: 700 }}>{((c.gg || 0) + (c.utilidad || 0)).toFixed(1)}%</td>
-              <td style={tds}><input value={c.obs} onChange={e => updateCot(c.id, "obs", e.target.value)} style={{ ...inpS, width: 100 }} placeholder="..." /></td>
-              <td style={tds}><button onClick={() => delCot(c.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
-            </tr>)}
-          </tbody>
-        </table>
+      <div style={tableWrap}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ ...tableS, minWidth: 1100 }}>
+            <thead><tr style={{ background: "rgba(0,0,0,.15)" }}>
+              {["N.º", "Proyecto", "Cliente", "Contacto", "Tipo", "Fecha", "Estado", "Presup. UF", "GG%", "Ut%", "Margen%", "Obs", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {data.cotizaciones.filter(c => filtroEstado === "Todos" || c.estado === filtroEstado).map((c, i) => <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)" }}>
+                <td style={tds}><input value={c.num} onChange={e => updateCot(c.id, "num", e.target.value)} style={{ ...inpS, width: 50 }} /></td>
+                <td style={tds}><input value={c.proyecto} onChange={e => updateCot(c.id, "proyecto", e.target.value)} style={{ ...inpS, width: 160, fontWeight: 600 }} /></td>
+                <td style={tds}><input value={c.cliente} onChange={e => updateCot(c.id, "cliente", e.target.value)} style={{ ...inpS, width: 100 }} /></td>
+                <td style={tds}><input value={c.contacto} onChange={e => updateCot(c.id, "contacto", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+                <td style={tds}>{badge(c.tipo, c.tipo === "Antiguo" ? "rgba(107,76,154,.3)" : "rgba(45,125,210,.3)", c.tipo === "Antiguo" ? "#B39DDB" : "#64B5F6")}</td>
+                <td style={tds}><input type="date" value={c.fecha} onChange={e => updateCot(c.id, "fecha", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+                <td style={tds}><select value={c.estado} onChange={e => updateCot(c.id, "estado", e.target.value)} style={{ ...selectS, width: 125, color: estadoColor(c.estado), fontWeight: 600 }}>
+                  <option value="Adjudicado">Adjudicado</option><option value="No Adjudicado">No Adjudicado</option><option value="Aun no definido">Aun no definido</option>
+                </select></td>
+                <td style={tds}><input type="number" value={c.presupuestoUF || ""} onChange={e => updateCot(c.id, "presupuestoUF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 85, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={c.gg || ""} onChange={e => updateCot(c.id, "gg", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 48, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={c.utilidad || ""} onChange={e => updateCot(c.id, "utilidad", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 48, textAlign: "right" }} /></td>
+                <td style={{ ...tds, fontWeight: 800, fontSize: 12 }}><span style={{ color, background: `${color}15`, padding: "3px 8px", borderRadius: 6 }}>{((c.gg || 0) + (c.utilidad || 0)).toFixed(1)}%</span></td>
+                <td style={tds}><input value={c.obs} onChange={e => updateCot(c.id, "obs", e.target.value)} style={{ ...inpS, width: 100 }} placeholder="..." /></td>
+                <td style={tds}><button onClick={() => delCot(c.id)} style={delBtn}>×</button></td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <SummaryBar items={[
+          { label: "Total presupuestado", val: fmtUF(totalPresUF) + " UF" },
+          { label: "Adjudicados", val: adjudicados, color: "#81C784" },
+          { label: "No adj.", val: noAdj, color: "#E84855" },
+          { label: "Pendientes", val: pendientes, color: "#888" },
+        ]} />
       </div>
-      <div style={{ display: "flex", gap: 12, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
-        {VBtn("+ Agregar cotización", addCot, color)}
-        <span style={{ fontSize: 11, color: "#888" }}>Total presupuestado: <b style={{ color }}>{fmtUF(totalPresUF)} UF</b></span>
-        <span style={{ fontSize: 11, color: "#888" }}>Adjudicados: <b style={{ color: "#81C784" }}>{adjudicados}</b></span>
-        <span style={{ fontSize: 11, color: "#888" }}>No adj.: <b style={{ color: "#E84855" }}>{noAdj}</b></span>
-        <span style={{ fontSize: 11, color: "#888" }}>Pendientes: <b style={{ color: "#888" }}>{pendientes}</b></span>
-      </div>
+      <div style={{ marginTop: 12 }}>{VBtn("+ Agregar cotización", addCot, color)}</div>
     </div>}
 
     {/* TAB 1: Presupuestos en Estudio */}
     {tab === 1 && <div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
-          <thead><tr>
-            {["Nombre", "Cliente", "Fecha Entrega", "Estado", "% Avance", "% Éxito", "Observaciones", ""].map(h => <th key={h} style={thS}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {data.estudios.map(e => <tr key={e.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-              <td style={tds}><input value={e.nombre} onChange={ev => updateEst(e.id, "nombre", ev.target.value)} style={{ ...inpS, width: 160 }} /></td>
-              <td style={tds}><input value={e.cliente} onChange={ev => updateEst(e.id, "cliente", ev.target.value)} style={{ ...inpS, width: 100 }} /></td>
-              <td style={tds}><input type="date" value={e.fechaEntrega} onChange={ev => updateEst(e.id, "fechaEntrega", ev.target.value)} style={{ ...inpS, width: 120 }} /></td>
-              <td style={tds}><input value={e.estado} onChange={ev => updateEst(e.id, "estado", ev.target.value)} style={{ ...inpS, width: 100 }} /></td>
-              <td style={tds}>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <div style={{ width: 60, height: 8, borderRadius: 4, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
-                    <div style={{ height: "100%", borderRadius: 4, background: color, width: (e.avance || 0) + "%", transition: "width .3s" }} />
+      <div style={tableWrap}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ ...tableS, minWidth: 700 }}>
+            <thead><tr style={{ background: "rgba(0,0,0,.15)" }}>
+              {["Nombre", "Cliente", "Fecha Entrega", "Estado", "% Avance", "% Éxito", "Observaciones", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {data.estudios.map((e, i) => <tr key={e.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)" }}>
+                <td style={tds}><input value={e.nombre} onChange={ev => updateEst(e.id, "nombre", ev.target.value)} style={{ ...inpS, width: 180, fontWeight: 600 }} /></td>
+                <td style={tds}><input value={e.cliente} onChange={ev => updateEst(e.id, "cliente", ev.target.value)} style={{ ...inpS, width: 110 }} /></td>
+                <td style={tds}><input type="date" value={e.fechaEntrega} onChange={ev => updateEst(e.id, "fechaEntrega", ev.target.value)} style={{ ...inpS, width: 130 }} /></td>
+                <td style={tds}><input value={e.estado} onChange={ev => updateEst(e.id, "estado", ev.target.value)} style={{ ...inpS, width: 110 }} /></td>
+                <td style={tds}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ width: 70, height: 10, borderRadius: 5, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", borderRadius: 5, background: `linear-gradient(90deg, ${color}, ${color}88)`, width: (e.avance || 0) + "%", transition: "width .3s" }} />
+                    </div>
+                    <input type="number" min={0} max={100} value={e.avance || ""} onChange={ev => updateEst(e.id, "avance", parseInt(ev.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} />
+                    <span style={{ fontSize: 10, color: "#666" }}>%</span>
                   </div>
-                  <input type="number" min={0} max={100} value={e.avance || ""} onChange={ev => updateEst(e.id, "avance", parseInt(ev.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} />
-                </div>
-              </td>
-              <td style={tds}><input type="number" min={0} max={100} value={e.exito || ""} onChange={ev => updateEst(e.id, "exito", parseInt(ev.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
-              <td style={tds}><input value={e.obs} onChange={ev => updateEst(e.id, "obs", ev.target.value)} style={{ ...inpS, width: 140 }} placeholder="..." /></td>
-              <td style={tds}><button onClick={() => delEst(e.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
-            </tr>)}
-          </tbody>
-        </table>
+                </td>
+                <td style={tds}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input type="number" min={0} max={100} value={e.exito || ""} onChange={ev => updateEst(e.id, "exito", parseInt(ev.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} />
+                    <span style={{ fontSize: 10, color: "#666" }}>%</span>
+                  </div>
+                </td>
+                <td style={tds}><input value={e.obs} onChange={ev => updateEst(e.id, "obs", ev.target.value)} style={{ ...inpS, width: 160 }} placeholder="..." /></td>
+                <td style={tds}><button onClick={() => delEst(e.id)} style={delBtn}>×</button></td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <SummaryBar items={[{ label: "Total en estudio", val: data.estudios.length }]} />
       </div>
-      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar estudio", addEst, color)}</div>
+      <div style={{ marginTop: 12 }}>{VBtn("+ Agregar estudio", addEst, color)}</div>
     </div>}
 
-    {/* TAB 2: Tabla Maestra Proyectos */}
+    {/* TAB 2: Tabla Maestra Proyectos + Adjudicados */}
     {tab === 2 && <div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
-          <thead><tr>
-            {["ID", "Proyecto", "Estado", "Constructora", "Proyectista", "Subt.", "Pisos", "Deptos", "Sup m²", "Meses", "$/m² UF", "Total UF", "$/Depto", "m²/mes", ""].map(h => <th key={h} style={thS}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {data.proyectos.map(p => {
-              const costoDepto = p.deptos > 0 ? (p.totalUF / p.deptos).toFixed(1) : "-";
-              const eficiencia = p.tiempoMeses > 0 ? (p.supTotal / p.tiempoMeses).toFixed(0) : "-";
-              return <tr key={p.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-                <td style={tds}><input value={p.idProy} onChange={e => updateProy(p.id, "idProy", e.target.value)} style={{ ...inpS, width: 75 }} /></td>
-                <td style={tds}><input value={p.proyecto} onChange={e => updateProy(p.id, "proyecto", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
-                <td style={tds}><select value={p.estado} onChange={e => updateProy(p.id, "estado", e.target.value)} style={{ ...selectS, width: 90, color: p.estado === "Ejecución" ? "#81C784" : color }}>
-                  <option value="Ejecución">Ejecución</option><option value="Propuesta">Propuesta</option><option value="Terminado">Terminado</option>
-                </select></td>
-                <td style={tds}><input value={p.constructora} onChange={e => updateProy(p.id, "constructora", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
-                <td style={tds}><input value={p.proyectista} onChange={e => updateProy(p.id, "proyectista", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
-                <td style={tds}><input type="number" value={p.subterraneos || ""} onChange={e => updateProy(p.id, "subterraneos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 35, textAlign: "right" }} /></td>
-                <td style={tds}><input type="number" value={p.pisos || ""} onChange={e => updateProy(p.id, "pisos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 35, textAlign: "right" }} /></td>
-                <td style={tds}><input type="number" value={p.deptos || ""} onChange={e => updateProy(p.id, "deptos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
-                <td style={tds}><input type="number" value={p.supTotal || ""} onChange={e => updateProy(p.id, "supTotal", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 60, textAlign: "right" }} /></td>
-                <td style={tds}><input type="number" value={p.tiempoMeses || ""} onChange={e => updateProy(p.id, "tiempoMeses", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
-                <td style={tds}><input type="number" step="0.001" value={p.costoM2UF || ""} onChange={e => updateProy(p.id, "costoM2UF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 55, textAlign: "right" }} /></td>
-                <td style={{ ...tds, color, fontWeight: 700 }}>{fmtUF(p.totalUF)}</td>
-                <td style={{ ...tds, color: "#64B5F6" }}>{costoDepto}</td>
-                <td style={{ ...tds, color: "#64B5F6" }}>{eficiencia}</td>
-                <td style={tds}><button onClick={() => delProy(p.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
-              </tr>;
-            })}
-          </tbody>
-        </table>
+      {/* Adjudicados from cotizaciones */}
+      {adjAsProys.length > 0 && <div style={{ ...cs.card, marginBottom: 14, border: `1px solid #81C78433` }}>
+        <div style={{ ...cs.lbl, color: "#81C784" }}>Cotizaciones adjudicadas (sin proyecto asignado)</div>
+        <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", marginTop: 8 }}>
+          {adjAsProys.map(ap => <div key={ap.id} style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(129,199,132,.06)", border: "1px solid rgba(129,199,132,.15)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#e0e0e0" }}>{ap.proyecto}</span>
+              {badge("Adjudicado", "rgba(129,199,132,.2)", "#81C784")}
+            </div>
+            <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>{ap.constructora} · {ap.idProy}</div>
+            <div style={{ display: "flex", gap: 12, fontSize: 11, marginTop: 6 }}>
+              <span style={{ color: "#888" }}>Total: <b style={{ color }}>{fmtUF(ap.totalUF)} UF</b></span>
+              <span style={{ color: "#888" }}>GG: <b style={{ color: "#ccc" }}>{ap._gg}%</b></span>
+              <span style={{ color: "#888" }}>Ut: <b style={{ color: "#ccc" }}>{ap._ut}%</b></span>
+            </div>
+          </div>)}
+        </div>
+      </div>}
+
+      <div style={tableWrap}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ ...tableS, minWidth: 1100 }}>
+            <thead><tr style={{ background: "rgba(0,0,0,.15)" }}>
+              {["ID", "Proyecto", "Estado", "Constructora", "Proyectista", "Subt.", "Pisos", "Deptos", "Sup m²", "Meses", "$/m² UF", "Total UF", "$/Depto", "m²/mes", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {data.proyectos.map((p, i) => {
+                const costoDepto = p.deptos > 0 ? (p.totalUF / p.deptos).toFixed(1) : "-";
+                const eficiencia = p.tiempoMeses > 0 ? (p.supTotal / p.tiempoMeses).toFixed(0) : "-";
+                return <tr key={p.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)" }}>
+                  <td style={tds}><input value={p.idProy} onChange={e => updateProy(p.id, "idProy", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
+                  <td style={tds}><input value={p.proyecto} onChange={e => updateProy(p.id, "proyecto", e.target.value)} style={{ ...inpS, width: 130, fontWeight: 600 }} /></td>
+                  <td style={tds}><select value={p.estado} onChange={e => updateProy(p.id, "estado", e.target.value)} style={{ ...selectS, width: 95, color: p.estado === "Ejecución" ? "#81C784" : p.estado === "Terminado" ? "#64B5F6" : color, fontWeight: 600 }}>
+                    <option value="Ejecución">Ejecución</option><option value="Propuesta">Propuesta</option><option value="Terminado">Terminado</option>
+                  </select></td>
+                  <td style={tds}><input value={p.constructora} onChange={e => updateProy(p.id, "constructora", e.target.value)} style={{ ...inpS, width: 85 }} /></td>
+                  <td style={tds}><input value={p.proyectista} onChange={e => updateProy(p.id, "proyectista", e.target.value)} style={{ ...inpS, width: 85 }} /></td>
+                  <td style={tds}><input type="number" value={p.subterraneos || ""} onChange={e => updateProy(p.id, "subterraneos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 38, textAlign: "right" }} /></td>
+                  <td style={tds}><input type="number" value={p.pisos || ""} onChange={e => updateProy(p.id, "pisos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 38, textAlign: "right" }} /></td>
+                  <td style={tds}><input type="number" value={p.deptos || ""} onChange={e => updateProy(p.id, "deptos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} /></td>
+                  <td style={tds}><input type="number" value={p.supTotal || ""} onChange={e => updateProy(p.id, "supTotal", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 65, textAlign: "right" }} /></td>
+                  <td style={tds}><input type="number" value={p.tiempoMeses || ""} onChange={e => updateProy(p.id, "tiempoMeses", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} /></td>
+                  <td style={tds}><input type="number" step="0.001" value={p.costoM2UF || ""} onChange={e => updateProy(p.id, "costoM2UF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 60, textAlign: "right" }} /></td>
+                  <td style={{ ...tds, fontWeight: 800 }}><span style={{ color, background: `${color}15`, padding: "3px 8px", borderRadius: 6 }}>{fmtUF(p.totalUF)}</span></td>
+                  <td style={{ ...tds, color: "#64B5F6", fontWeight: 600 }}>{costoDepto}</td>
+                  <td style={{ ...tds, color: "#64B5F6", fontWeight: 600 }}>{eficiencia}</td>
+                  <td style={tds}><button onClick={() => delProy(p.id)} style={delBtn}>×</button></td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        <SummaryBar items={[
+          { label: "Proyectos", val: data.proyectos.length },
+          { label: "En ejecución", val: proysEjec, color: "#81C784" },
+          { label: "En propuesta", val: proysProp },
+          { label: "Total deptos", val: totalDeptos, color: "#64B5F6" },
+        ]} />
       </div>
-      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar proyecto", addProy, color)}</div>
+      <div style={{ marginTop: 12 }}>{VBtn("+ Agregar proyecto", addProy, color)}</div>
     </div>}
 
     {/* TAB 3: Status Comercial */}
     {tab === 3 && <div>
-      <div style={{ overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
-          <thead><tr>
-            {["Obra", "Cliente", "Fecha", "Meses", "Dificultad", "Gente", "%GG", "%UT", "Monto UF", "Status", "Decisión", "Ganado por", ""].map(h => <th key={h} style={thS}>{h}</th>)}
-          </tr></thead>
-          <tbody>
-            {data.statusComercial.map(s => <tr key={s.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-              <td style={tds}><input value={s.obra} onChange={e => updateStat(s.id, "obra", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
-              <td style={tds}><input value={s.cliente} onChange={e => updateStat(s.id, "cliente", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
-              <td style={tds}><input type="date" value={s.fechaInicio} onChange={e => updateStat(s.id, "fechaInicio", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
-              <td style={tds}><input type="number" value={s.meses || ""} onChange={e => updateStat(s.id, "meses", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
-              <td style={tds}><select value={s.dificultad} onChange={e => updateStat(s.id, "dificultad", e.target.value)} style={{ ...selectS, width: 75, color: difColor(s.dificultad) }}>
-                <option value="Baja">Baja</option><option value="Media">Media</option><option value="Alta">Alta</option>
-              </select></td>
-              <td style={tds}><input type="number" value={s.gente || ""} onChange={e => updateStat(s.id, "gente", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 35, textAlign: "right" }} /></td>
-              <td style={tds}><input type="number" value={s.gg || ""} onChange={e => updateStat(s.id, "gg", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
-              <td style={tds}><input type="number" value={s.ut || ""} onChange={e => updateStat(s.id, "ut", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
-              <td style={tds}><input type="number" value={s.montoUF || ""} onChange={e => updateStat(s.id, "montoUF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 70, textAlign: "right" }} /></td>
-              <td style={tds}><select value={s.status} onChange={e => updateStat(s.id, "status", e.target.value)} style={{ ...selectS, width: 110, color: estadoColor(s.status) }}>
-                <option value="Adjudicada">Adjudicada</option><option value="Perdida">Perdida</option><option value="Aun no se define">Aun no se define</option>
-              </select></td>
-              <td style={tds}><input value={s.decision} onChange={e => updateStat(s.id, "decision", e.target.value)} style={{ ...inpS, width: 100 }} /></td>
-              <td style={tds}><input value={s.ganadoPor} onChange={e => updateStat(s.id, "ganadoPor", e.target.value)} style={{ ...inpS, width: 90 }} /></td>
-              <td style={tds}><button onClick={() => delStat(s.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
-            </tr>)}
-          </tbody>
-        </table>
+      <div style={tableWrap}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ ...tableS, minWidth: 1100 }}>
+            <thead><tr style={{ background: "rgba(0,0,0,.15)" }}>
+              {["Obra", "Cliente", "Fecha", "Meses", "Dificultad", "Gente", "%GG", "%UT", "Monto UF", "Status", "Decisión", "Ganado por", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+            </tr></thead>
+            <tbody>
+              {data.statusComercial.map((s, i) => <tr key={s.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)" }}>
+                <td style={tds}><input value={s.obra} onChange={e => updateStat(s.id, "obra", e.target.value)} style={{ ...inpS, width: 130, fontWeight: 600 }} /></td>
+                <td style={tds}><input value={s.cliente} onChange={e => updateStat(s.id, "cliente", e.target.value)} style={{ ...inpS, width: 85 }} /></td>
+                <td style={tds}><input type="date" value={s.fechaInicio} onChange={e => updateStat(s.id, "fechaInicio", e.target.value)} style={{ ...inpS, width: 125 }} /></td>
+                <td style={tds}><input type="number" value={s.meses || ""} onChange={e => updateStat(s.id, "meses", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} /></td>
+                <td style={tds}><select value={s.dificultad} onChange={e => updateStat(s.id, "dificultad", e.target.value)} style={{ ...selectS, width: 80, color: difColor(s.dificultad), fontWeight: 600 }}>
+                  <option value="Baja">Baja</option><option value="Media">Media</option><option value="Alta">Alta</option>
+                </select></td>
+                <td style={tds}><input type="number" value={s.gente || ""} onChange={e => updateStat(s.id, "gente", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 38, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={s.gg || ""} onChange={e => updateStat(s.id, "gg", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={s.ut || ""} onChange={e => updateStat(s.id, "ut", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 42, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={s.montoUF || ""} onChange={e => updateStat(s.id, "montoUF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 75, textAlign: "right" }} /></td>
+                <td style={tds}><select value={s.status} onChange={e => updateStat(s.id, "status", e.target.value)} style={{ ...selectS, width: 115, color: estadoColor(s.status), fontWeight: 600 }}>
+                  <option value="Adjudicada">Adjudicada</option><option value="Perdida">Perdida</option><option value="Aun no se define">Aun no se define</option>
+                </select></td>
+                <td style={tds}><input value={s.decision} onChange={e => updateStat(s.id, "decision", e.target.value)} style={{ ...inpS, width: 110 }} /></td>
+                <td style={tds}><input value={s.ganadoPor} onChange={e => updateStat(s.id, "ganadoPor", e.target.value)} style={{ ...inpS, width: 95 }} /></td>
+                <td style={tds}><button onClick={() => delStat(s.id)} style={delBtn}>×</button></td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+        <SummaryBar items={[
+          { label: "Total", val: data.statusComercial.length },
+          { label: "Adjudicadas", val: data.statusComercial.filter(s => s.status === "Adjudicada").length, color: "#81C784" },
+          { label: "Perdidas", val: data.statusComercial.filter(s => s.status === "Perdida").length, color: "#E84855" },
+        ]} />
       </div>
-      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar entrada", addStat, color)}</div>
+      <div style={{ marginTop: 12 }}>{VBtn("+ Agregar entrada", addStat, color)}</div>
     </div>}
 
     {/* TAB 4: Dashboard */}
     {tab === 4 && <div>
       {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 18 }}>
         {[
-          { label: "Total Presupuestado", val: fmtUF(totalPresUF) + " UF", icon: "📊" },
-          { label: "Total Cotizaciones", val: totalCot, icon: "📋" },
-          { label: "Tasa Adjudicación", val: tasaAdj + "%", icon: "🎯" },
-          { label: "Proys. en Ejecución", val: proysEjec, icon: "🏗️" },
-          { label: "Proys. en Propuesta", val: proysProp, icon: "📝" },
-          { label: "Total Departamentos", val: totalDeptos, icon: "🏢" },
-        ].map(k => <div key={k.label} style={cs.card}>
-          <div style={cs.lbl}>{k.icon} {k.label}</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 4 }}>{k.val}</div>
+          { label: "Total Presupuestado", val: fmtUF(totalPresUF) + " UF", icon: "📊", accent: color },
+          { label: "Adjudicado", val: fmtUF(adjUFTotal) + " UF", icon: "✅", accent: "#81C784" },
+          { label: "Tasa Adjudicación", val: tasaAdj + "%", icon: "🎯", accent: tasaAdj >= 30 ? "#81C784" : color },
+          { label: "Proys. en Ejecución", val: proysEjec, icon: "🏗️", accent: "#81C784" },
+          { label: "Proys. en Propuesta", val: proysProp, icon: "📝", accent: color },
+          { label: "Total Departamentos", val: totalDeptos, icon: "🏢", accent: "#64B5F6" },
+        ].map(k => <div key={k.label} style={{ ...cs.card, borderLeft: `3px solid ${k.accent}44` }}>
+          <div style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6, fontWeight: 700 }}>{k.icon} {k.label}</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: k.accent }}>{k.val}</div>
         </div>)}
       </div>
 
       {/* Funnel visual */}
-      <div style={{ ...cs.card, marginBottom: 12 }}>
+      <div style={{ ...cs.card, marginBottom: 14 }}>
         <div style={cs.lbl}>Funnel comercial</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "end", marginTop: 8, height: 100 }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "end", marginTop: 10, height: 120 }}>
           {[
             { label: "Enviadas", val: totalCot, color: "#2D7DD2" },
             { label: "Pendientes", val: pendientes, color },
             { label: "Adjudicadas", val: adjudicados, color: "#81C784" },
             { label: "No Adj.", val: noAdj, color: "#E84855" },
           ].map(f => {
-            const pct = totalCot > 0 ? Math.max(10, f.val / totalCot * 100) : 10;
+            const pct = totalCot > 0 ? Math.max(12, f.val / totalCot * 100) : 12;
             return <div key={f.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: f.color, marginBottom: 4 }}>{f.val}</div>
-              <div style={{ width: "100%", height: pct + "%", minHeight: 8, borderRadius: 6, background: f.color + "44" }} />
-              <div style={{ fontSize: 9, color: "#888", marginTop: 4 }}>{f.label}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: f.color, marginBottom: 6 }}>{f.val}</div>
+              <div style={{ width: "100%", height: pct + "%", minHeight: 10, borderRadius: 8, background: `linear-gradient(180deg, ${f.color}66, ${f.color}22)`, border: `1px solid ${f.color}33` }} />
+              <div style={{ fontSize: 10, color: "#777", marginTop: 6, fontWeight: 600 }}>{f.label}</div>
             </div>;
           })}
         </div>
       </div>
 
       {/* Resumen por estado */}
-      <div style={cs.card}>
-        <div style={cs.lbl}>Resumen por estado - Cotizaciones</div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
-          <thead><tr>
+      <div style={tableWrap}>
+        <div style={{ padding: "12px 18px", borderBottom: "1px solid rgba(255,255,255,.06)" }}>
+          <div style={cs.lbl}>Resumen por estado - Cotizaciones</div>
+        </div>
+        <table style={tableS}>
+          <thead><tr style={{ background: "rgba(0,0,0,.1)" }}>
             <th style={thS}>Estado</th><th style={thS}>Cantidad</th><th style={thS}>UF Total</th><th style={thS}>% del Total</th>
           </tr></thead>
           <tbody>
-            {["Adjudicado", "No Adjudicado", "Aun no definido"].map(est => {
+            {["Adjudicado", "No Adjudicado", "Aun no definido"].map((est, i) => {
               const items = data.cotizaciones.filter(c => c.estado === est);
               const uf = items.reduce((a, c) => a + (c.presupuestoUF || 0), 0);
-              return <tr key={est} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-                <td style={{ ...tds, color: estadoColor(est), fontWeight: 600 }}>{est}</td>
-                <td style={tds}>{items.length}</td>
-                <td style={tds}>{fmtUF(uf)}</td>
-                <td style={tds}>{totalPresUF > 0 ? Math.round(uf / totalPresUF * 100) : 0}%</td>
+              const pct = totalPresUF > 0 ? Math.round(uf / totalPresUF * 100) : 0;
+              return <tr key={est} style={{ borderBottom: "1px solid rgba(255,255,255,.04)", background: i % 2 === 0 ? "transparent" : "rgba(255,255,255,.015)" }}>
+                <td style={{ ...tds, fontWeight: 700 }}>{badge(est, estadoColor(est) + "22", estadoColor(est))}</td>
+                <td style={{ ...tds, fontWeight: 700, fontSize: 13 }}>{items.length}</td>
+                <td style={{ ...tds, fontWeight: 700, color }}>{fmtUF(uf)} UF</td>
+                <td style={tds}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 60, height: 8, borderRadius: 4, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                      <div style={{ height: "100%", borderRadius: 4, background: estadoColor(est), width: pct + "%", transition: "width .3s" }} />
+                    </div>
+                    <span style={{ fontWeight: 700 }}>{pct}%</span>
+                  </div>
+                </td>
               </tr>;
             })}
           </tbody>
