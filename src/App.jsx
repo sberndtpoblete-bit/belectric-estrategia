@@ -246,7 +246,7 @@ const PILLARS = [
   {
     id: 4, name: "Comercial y Ventas", icon: "💼", color: "#F7B32B", bscLink: ["clientes", "financiera"],
     items: [
-      { key: "pipeline", label: "Pipeline de ventas", desc: "Embudo comercial", template: { sections: [{ key: "etapas", label: "Etapas", placeholder: "Prospecto → Cierre..." }, { key: "conversion", label: "Conversión", placeholder: "% entre etapas..." }, { key: "volumen", label: "Volumen actual", placeholder: "Oportunidades por etapa..." }]}},
+      { key: "pipeline", label: "Pipeline de ventas", desc: "Embudo comercial", template: { type: "comercial", dataKey: "comercial" }},
       { key: "procesoComercial", label: "Proceso comercial", desc: "Paso a paso", template: { sections: [{ key: "prospeccion", label: "Prospección", placeholder: "Cómo se generan oportunidades..." }, { key: "cierre", label: "Cierre", placeholder: "Cómo se cierra..." }]}},
       { key: "propuestas", label: "Propuestas", desc: "Templates profesionales", template: { sections: [{ key: "template", label: "Template", placeholder: "Formato estándar..." }, { key: "aprobacion", label: "Aprobación", placeholder: "Quién aprueba..." }]}},
       { key: "pricing", label: "Pricing", desc: "Estrategia de precios", template: { sections: [{ key: "estructura", label: "Estructura", placeholder: "Cómo se calculan..." }, { key: "margenes", label: "Márgenes objetivo", placeholder: "Por tipo de proyecto..." }]}},
@@ -863,6 +863,343 @@ function StandardsEditor({ pid, ik, ct, onUpdate, color }) {
       {VInp(std.inspecciones, v => updateStd(std.id, "inspecciones", v), "Puntos de inspección", { marginTop: 6, fontSize: 11 })}
     </div>)}
     <div style={{ marginTop: 8 }}>{VBtn("+ Agregar estándar", addStd, color)}</div>
+  </div>;
+}
+
+// ─── COMERCIAL EDITOR ───
+const DEFAULT_COMERCIAL = {
+  cotizaciones: [
+    { id: "c1", num: "C44", proyecto: "GENERAL JOFRE", cliente: "GESPANIA", contacto: "GUISELLA GONZALEZ", tipo: "Antiguo", fecha: "", estado: "Adjudicado", presupuestoUF: 27090.3, gg: 11, utilidad: 8.2, obs: "" },
+    { id: "c2", num: "C50", proyecto: "EDIFICIO BRIONES LUCO", cliente: "INGEVEC", contacto: "PAULINA BAEZA BARRIA", tipo: "Nuevo", fecha: "2025-02-24", estado: "Aun no definido", presupuestoUF: 11606.97, gg: 10, utilidad: 8, obs: "" },
+    { id: "c3", num: "C51", proyecto: "CONDOMINIO LOS CIPRESES", cliente: "POCURO", contacto: "CAROLINA SUAZO", tipo: "Nuevo", fecha: "2025-03-12", estado: "No Adjudicado", presupuestoUF: 35720.83, gg: 10, utilidad: 7, obs: "" },
+    { id: "c4", num: "C52", proyecto: "EDIFICIO PUERTAS DE ALCAZAR", cliente: "FGS", contacto: "REINALDO GUTIERRES", tipo: "Antiguo", fecha: "2025-02-17", estado: "No Adjudicado", presupuestoUF: 24641.55, gg: 7, utilidad: 7, obs: "" },
+    { id: "c5", num: "C53", proyecto: "EDIFICIO VIVACETA", cliente: "INGEVEC", contacto: "CARLA CARVAJAL", tipo: "Nuevo", fecha: "2025-04-23", estado: "Aun no definido", presupuestoUF: 13234.86, gg: 12, utilidad: 12, obs: "" },
+    { id: "c6", num: "C58", proyecto: "FRANCISCO DE AGUIRRE R2", cliente: "CONSTRUCTORA H", contacto: "JOSÉ IRRARÁZABAL", tipo: "Nuevo", fecha: "2025-09-12", estado: "Aun no definido", presupuestoUF: 14721.63, gg: 10, utilidad: 10, obs: "" },
+    { id: "c7", num: "C59", proyecto: "EDIFICIO VICUÑA MACKENNA 2189", cliente: "SANTOLAYA", contacto: "SEBASTIÁN SOTO", tipo: "Nuevo", fecha: "2025-08-05", estado: "No Adjudicado", presupuestoUF: 18572.87, gg: 8, utilidad: 8, obs: "" },
+    { id: "c8", num: "C61", proyecto: "UNAB R1", cliente: "KALAM", contacto: "CLAUDIO RODRIGUEZ", tipo: "Antiguo", fecha: "2025-11-03", estado: "Aun no definido", presupuestoUF: 5316.48, gg: 10, utilidad: 10, obs: "" },
+    { id: "c9", num: "C62", proyecto: "CONDOMINIO EL OLIVAR", cliente: "LEVEL", contacto: "FELIPE PEÑA", tipo: "Nuevo", fecha: "2025-09-08", estado: "Aun no definido", presupuestoUF: 2879.5, gg: 10, utilidad: 8, obs: "" },
+    { id: "c10", num: "C63", proyecto: "CONDOMINIO LOS CIPRESES", cliente: "LEVEL", contacto: "FELIPE PEÑA", tipo: "Nuevo", fecha: "2025-09-05", estado: "Aun no definido", presupuestoUF: 2973.99, gg: 10, utilidad: 8, obs: "" },
+    { id: "c11", num: "C64", proyecto: "EDIFICIO LAS CONDES 7990 R4", cliente: "FGS", contacto: "REINALDO GUTIERREZ", tipo: "Antiguo", fecha: "2025-12-31", estado: "Adjudicado", presupuestoUF: 10615.05, gg: 8, utilidad: 7.59, obs: "" },
+    { id: "c12", num: "C65", proyecto: "EDIFICIO ECUADOR ZELADA", cliente: "RVC", contacto: "SEBASTIÁN FIGUEROA", tipo: "Nuevo", fecha: "2025-10-20", estado: "No Adjudicado", presupuestoUF: 27132.6, gg: 15, utilidad: 10, obs: "" },
+    { id: "c13", num: "C66", proyecto: "EDIFICIO MARATHÓN", cliente: "TERRAFIRME", contacto: "FELIPE BAEZA", tipo: "Nuevo", fecha: "2025-11-10", estado: "No Adjudicado", presupuestoUF: 15916.64, gg: 7, utilidad: 7, obs: "" },
+    { id: "c14", num: "C67", proyecto: "EDIFICIO HERNANDO DE AGUIRRE R4", cliente: "FGS", contacto: "REINALDO GUTIERREZ", tipo: "Antiguo", fecha: "2025-12-31", estado: "Adjudicado", presupuestoUF: 10615.04, gg: 6.31, utilidad: 6, obs: "" },
+    { id: "c15", num: "C68", proyecto: "UDP EDIFICIO 10", cliente: "DLDS", contacto: "DANIEL SMITH", tipo: "Nuevo", fecha: "2025-11-27", estado: "Aun no definido", presupuestoUF: 20624.11, gg: 7, utilidad: 7, obs: "" },
+    { id: "c16", num: "C69", proyecto: "EDP EDIFICIO 17", cliente: "DLDS", contacto: "DANIEL SMITH", tipo: "Nuevo", fecha: "2025-11-27", estado: "Aun no definido", presupuestoUF: 28898.65, gg: 7, utilidad: 7, obs: "" },
+    { id: "c17", num: "C70", proyecto: "UNIVERSIDAD AUTÓNOMA UASM", cliente: "LA NAVE", contacto: "MARÍA ACOSTA", tipo: "Nuevo", fecha: "", estado: "Aun no definido", presupuestoUF: 0, gg: 0, utilidad: 0, obs: "" },
+    { id: "c18", num: "C71", proyecto: "POMAIRE MACUL COIPUE", cliente: "SANTOLAYA", contacto: "CESAR BASOALTO", tipo: "Nuevo", fecha: "2025-11-28", estado: "Aun no definido", presupuestoUF: 14400, gg: 12, utilidad: 12, obs: "" },
+    { id: "c19", num: "C72", proyecto: "EDIFICIO VICTORIA R1", cliente: "CONSTRUCTORA BASCUÑAN", contacto: "MÁXIMO ASTORGA", tipo: "Nuevo", fecha: "2025-11-21", estado: "Aun no definido", presupuestoUF: 8875.49, gg: 9, utilidad: 8, obs: "" },
+    { id: "c20", num: "C73", proyecto: "EDIFICIO BRIONES LUCO R2", cliente: "INGEVEC", contacto: "CARLOS PLUMBEL", tipo: "Nuevo", fecha: "2025-12-11", estado: "Aun no definido", presupuestoUF: 12157.5, gg: 9, utilidad: 9, obs: "" },
+    { id: "c21", num: "C74", proyecto: "EDIFICIO RECSA", cliente: "KALAM", contacto: "CLAUDIO RODRIGUEZ", tipo: "Antiguo", fecha: "", estado: "Aun no definido", presupuestoUF: 6461.53, gg: 10, utilidad: 10, obs: "" },
+    { id: "c22", num: "C75", proyecto: "PRIMO DE RIVERA", cliente: "LEVEL", contacto: "FELIPE PEÑA", tipo: "Nuevo", fecha: "", estado: "Aun no definido", presupuestoUF: 19593.04, gg: 10, utilidad: 10, obs: "" },
+    { id: "c23", num: "C76", proyecto: "LOTE 46", cliente: "ENACO", contacto: "SEBASTIÁN MORENO", tipo: "Antiguo", fecha: "", estado: "Aun no definido", presupuestoUF: 0, gg: 0, utilidad: 0, obs: "" },
+  ],
+  estudios: [
+    { id: "e1", nombre: "Casas Enaco", cliente: "ENACO", fechaEntrega: "2021-10-22", estado: "", avance: 0, exito: 0, obs: "" },
+    { id: "e2", nombre: "Lote 39", cliente: "ENACO", fechaEntrega: "2021-10-22", estado: "", avance: 0, exito: 0, obs: "" },
+    { id: "e3", nombre: "Lote 40", cliente: "ENACO", fechaEntrega: "2021-10-22", estado: "", avance: 0, exito: 0, obs: "" },
+    { id: "e4", nombre: "Edificio los leones", cliente: "Besalco", fechaEntrega: "", estado: "", avance: 0, exito: 0, obs: "" },
+  ],
+  proyectos: [
+    { id: "p1", idProy: "2024-001", proyecto: "SAN DAMIAN 7", estado: "Ejecución", constructora: "Enaco", proyectista: "HBA", anio: 2024, subterraneos: 4, pisos: 32, deptos: 62, supTotal: 31345, tiempoMeses: 26, costoM2UF: 0.896, totalUF: 28100 },
+    { id: "p2", idProy: "2024-002", proyecto: "SAN IGNACIO 2", estado: "Ejecución", constructora: "FGS", proyectista: "CCE", anio: 2024, subterraneos: 2, pisos: 11, deptos: 80, supTotal: 7220, tiempoMeses: 18, costoM2UF: 0.92, totalUF: 6642 },
+    { id: "p3", idProy: "2024-003", proyecto: "CIMM", estado: "Ejecución", constructora: "Moller", proyectista: "I-SAT", anio: 2024, subterraneos: 2, pisos: 3, deptos: 25, supTotal: 1700, tiempoMeses: 12, costoM2UF: 0.95, totalUF: 1615 },
+    { id: "p4", idProy: "2024-004", proyecto: "NATANIEL COX", estado: "Propuesta", constructora: "CNB", proyectista: "Full Ingeniería", anio: 2024, subterraneos: 3, pisos: 25, deptos: 85, supTotal: 19200, tiempoMeses: 22, costoM2UF: 0.892, totalUF: 17126 },
+    { id: "p5", idProy: "2024-005", proyecto: "PORTUGAL", estado: "Propuesta", constructora: "MPC", proyectista: "CCE", anio: 2024, subterraneos: 2, pisos: 18, deptos: 66, supTotal: 12240, tiempoMeses: 20, costoM2UF: 0.905, totalUF: 11077 },
+    { id: "p6", idProy: "2024-006", proyecto: "SICILIA", estado: "Ejecución", constructora: "FGS", proyectista: "GEISA", anio: 2024, subterraneos: 0, pisos: 25, deptos: 94, supTotal: 18000, tiempoMeses: 24, costoM2UF: 0.88, totalUF: 15840 },
+    { id: "p7", idProy: "2024-007", proyecto: "ZENTENO", estado: "Ejecución", constructora: "Enaco", proyectista: "MyG", anio: 2024, subterraneos: 6, pisos: 14, deptos: 155, supTotal: 16100, tiempoMeses: 28, costoM2UF: 0.915, totalUF: 14732 },
+    { id: "p8", idProy: "2024-008", proyecto: "PALERMO", estado: "Ejecución", constructora: "Moller", proyectista: "CEE", anio: 2024, subterraneos: 0, pisos: 12, deptos: 52, supTotal: 5400, tiempoMeses: 16, costoM2UF: 0.935, totalUF: 5049 },
+  ],
+  statusComercial: [
+    { id: "s1", obra: "Cuatro Vientos", cliente: "FGS", fechaInicio: "2022-03-01", meses: 12, dificultad: "Baja", gente: 7, gg: 12, ut: 10, montoUF: 8150, status: "Adjudicada", decision: "Interesante", ganadoPor: "" },
+    { id: "s2", obra: "Argomedo", cliente: "FGS", fechaInicio: "2022-03-01", meses: 20, dificultad: "Alta", gente: 20, gg: 12, ut: 10, montoUF: 31000, status: "Aun no se define", decision: "No es atractiva", ganadoPor: "" },
+    { id: "s3", obra: "Rio Guardiana", cliente: "MPC", fechaInicio: "2022-03-01", meses: 18, dificultad: "Media", gente: 10, gg: 12, ut: 12, montoUF: 19000, status: "Perdida", decision: "Interesante", ganadoPor: "Raul Paratore" },
+    { id: "s4", obra: "O'Brien", cliente: "FGS", fechaInicio: "2022-03-01", meses: 10, dificultad: "Media", gente: 6, gg: 14, ut: 12, montoUF: 10000, status: "Perdida", decision: "Interesante", ganadoPor: "" },
+    { id: "s5", obra: "Lote 39-40", cliente: "Enaco", fechaInicio: "2022-07-01", meses: 0, dificultad: "Baja", gente: 0, gg: 0, ut: 0, montoUF: 0, status: "Aun no se define", decision: "", ganadoPor: "" },
+    { id: "s6", obra: "Briones Luco", cliente: "Viarsa", fechaInicio: "2022-05-01", meses: 0, dificultad: "Media", gente: 0, gg: 0, ut: 0, montoUF: 0, status: "Aun no se define", decision: "", ganadoPor: "" },
+    { id: "s7", obra: "Nuncio Ossa", cliente: "Gespania", fechaInicio: "2022-05-01", meses: 0, dificultad: "Media", gente: 14, gg: 13, ut: 10, montoUF: 27479, status: "Aun no se define", decision: "Interesante", ganadoPor: "" },
+    { id: "s8", obra: "San Diego", cliente: "", fechaInicio: "2022-05-01", meses: 0, dificultad: "Media", gente: 0, gg: 0, ut: 0, montoUF: 0, status: "Aun no se define", decision: "", ganadoPor: "" },
+    { id: "s9", obra: "El Rosal 1", cliente: "Gespania", fechaInicio: "2022-05-01", meses: 0, dificultad: "Baja", gente: 0, gg: 0, ut: 0, montoUF: 0, status: "Aun no se define", decision: "Interesante", ganadoPor: "" },
+    { id: "s10", obra: "Edificio Modo", cliente: "Armas", fechaInicio: "", meses: 0, dificultad: "", gente: 0, gg: 0, ut: 0, montoUF: 0, status: "Aun no se define", decision: "", ganadoPor: "" },
+  ],
+};
+
+function migrateCom(d) {
+  if (!d) return DEFAULT_COMERCIAL;
+  let out = { ...d };
+  if (!out.cotizaciones) out.cotizaciones = DEFAULT_COMERCIAL.cotizaciones;
+  if (!out.estudios) out.estudios = DEFAULT_COMERCIAL.estudios;
+  if (!out.proyectos) out.proyectos = DEFAULT_COMERCIAL.proyectos;
+  if (!out.statusComercial) out.statusComercial = DEFAULT_COMERCIAL.statusComercial;
+  return out;
+}
+
+function ComercialEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-comercial`;
+  const data = migrateCom(getJSON(dk, DEFAULT_COMERCIAL));
+  const save = (d) => setJSON(dk, d);
+
+  const [tab, setTab] = useState(0);
+  const [filtroEstado, setFiltroEstado] = useState("Todos");
+  const tabs = ["Cotizaciones", "En Estudio", "Proyectos", "Status", "Dashboard"];
+
+  const cs = { card: { padding: "12px 16px", borderRadius: 10, background: "rgba(0,0,0,.2)", border: "1px solid rgba(255,255,255,.06)" }, lbl: { fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }, big: { fontSize: 28, fontWeight: 800, color } };
+  const inpS = { padding: "6px 8px", borderRadius: 6, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box" };
+  const tds = { padding: "4px 6px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap" };
+  const thS = { padding: "6px 6px", fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap", borderBottom: "1px solid rgba(255,255,255,.1)" };
+
+  const fmtUF = (n) => (n || 0).toLocaleString("es-CL", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const fmtPct = (n) => ((n || 0) * 100).toFixed(1) + "%";
+
+  // Cotizaciones helpers
+  const updateCot = (id, field, val) => save({ ...data, cotizaciones: data.cotizaciones.map(c => c.id === id ? { ...c, [field]: val } : c) });
+  const addCot = () => save({ ...data, cotizaciones: [...data.cotizaciones, { id: genId(), num: "", proyecto: "", cliente: "", contacto: "", tipo: "Nuevo", fecha: "", estado: "Aun no definido", presupuestoUF: 0, gg: 0, utilidad: 0, obs: "" }] });
+  const delCot = (id) => { if (window.confirm("¿Eliminar cotización?")) save({ ...data, cotizaciones: data.cotizaciones.filter(c => c.id !== id) }); };
+
+  // Estudios helpers
+  const updateEst = (id, field, val) => save({ ...data, estudios: data.estudios.map(e => e.id === id ? { ...e, [field]: val } : e) });
+  const addEst = () => save({ ...data, estudios: [...data.estudios, { id: genId(), nombre: "", cliente: "", fechaEntrega: "", estado: "", avance: 0, exito: 0, obs: "" }] });
+  const delEst = (id) => { if (window.confirm("¿Eliminar estudio?")) save({ ...data, estudios: data.estudios.filter(e => e.id !== id) }); };
+
+  // Proyectos helpers
+  const updateProy = (id, field, val) => save({ ...data, proyectos: data.proyectos.map(p => p.id === id ? { ...p, [field]: val } : p) });
+  const addProy = () => save({ ...data, proyectos: [...data.proyectos, { id: genId(), idProy: "", proyecto: "", estado: "Propuesta", constructora: "", proyectista: "", anio: 2025, subterraneos: 0, pisos: 0, deptos: 0, supTotal: 0, tiempoMeses: 0, costoM2UF: 0, totalUF: 0 }] });
+  const delProy = (id) => { if (window.confirm("¿Eliminar proyecto?")) save({ ...data, proyectos: data.proyectos.filter(p => p.id !== id) }); };
+
+  // Status helpers
+  const updateStat = (id, field, val) => save({ ...data, statusComercial: data.statusComercial.map(s => s.id === id ? { ...s, [field]: val } : s) });
+  const addStat = () => save({ ...data, statusComercial: [...data.statusComercial, { id: genId(), obra: "", cliente: "", fechaInicio: "", meses: 0, dificultad: "Media", gente: 0, gg: 0, ut: 0, montoUF: 0, status: "Aun no se define", decision: "", ganadoPor: "" }] });
+  const delStat = (id) => { if (window.confirm("¿Eliminar entrada?")) save({ ...data, statusComercial: data.statusComercial.filter(s => s.id !== id) }); };
+
+  const resetData = () => { if (window.confirm("¿Restaurar datos originales del editor comercial?")) save(DEFAULT_COMERCIAL); };
+
+  // Dashboard calcs
+  const totalPresUF = data.cotizaciones.reduce((a, c) => a + (c.presupuestoUF || 0), 0);
+  const totalCot = data.cotizaciones.length;
+  const adjudicados = data.cotizaciones.filter(c => c.estado === "Adjudicado").length;
+  const noAdj = data.cotizaciones.filter(c => c.estado === "No Adjudicado").length;
+  const pendientes = data.cotizaciones.filter(c => c.estado === "Aun no definido").length;
+  const tasaAdj = totalCot > 0 ? Math.round(adjudicados / totalCot * 100) : 0;
+  const proysEjec = data.proyectos.filter(p => p.estado === "Ejecución").length;
+  const proysProp = data.proyectos.filter(p => p.estado === "Propuesta").length;
+  const totalDeptos = data.proyectos.reduce((a, p) => a + (p.deptos || 0), 0);
+  const adjUFTotal = data.cotizaciones.filter(c => c.estado === "Adjudicado").reduce((a, c) => a + (c.presupuestoUF || 0), 0);
+
+  const estadoColor = (e) => e === "Adjudicado" || e === "Adjudicada" ? "#81C784" : e === "No Adjudicado" || e === "Perdida" ? "#E84855" : "#888";
+  const difColor = (d) => d === "Baja" ? "#81C784" : d === "Alta" ? "#E84855" : "#F7B32B";
+
+  const selectS = { ...inpS, appearance: "none", WebkitAppearance: "none", paddingRight: 20, backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath fill='%23888' d='M0 2l4 4 4-4z'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center", cursor: "pointer" };
+
+  return <div>
+    {/* Tab bar */}
+    <div style={{ display: "flex", gap: 4, marginBottom: 16, flexWrap: "wrap" }}>
+      {tabs.map((t, i) => <button key={t} onClick={() => setTab(i)} style={{ padding: "6px 14px", borderRadius: 8, border: tab === i ? `1px solid ${color}` : "1px solid rgba(255,255,255,.08)", background: tab === i ? `${color}22` : "rgba(0,0,0,.2)", color: tab === i ? color : "#888", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{t}</button>)}
+      <div style={{ flex: 1 }} />
+      <button onClick={resetData} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.06)", background: "rgba(0,0,0,.15)", color: "#666", fontSize: 11, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>↩ Restaurar</button>
+    </div>
+
+    {/* TAB 0: Cotizaciones Enviadas */}
+    {tab === 0 && <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, color: "#888", textTransform: "uppercase", letterSpacing: 1 }}>Filtrar:</span>
+        {["Todos", "Adjudicado", "No Adjudicado", "Aun no definido"].map(f => <button key={f} onClick={() => setFiltroEstado(f)} style={{ padding: "3px 10px", borderRadius: 6, border: filtroEstado === f ? `1px solid ${color}` : "1px solid rgba(255,255,255,.06)", background: filtroEstado === f ? `${color}22` : "transparent", color: filtroEstado === f ? color : "#888", fontSize: 10, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{f}</button>)}
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+          <thead><tr>
+            {["N.º", "Proyecto", "Cliente", "Contacto", "Tipo", "Fecha", "Estado", "Presup. UF", "GG%", "Ut%", "Margen%", "Obs", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {data.cotizaciones.filter(c => filtroEstado === "Todos" || c.estado === filtroEstado).map(c => <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+              <td style={tds}><input value={c.num} onChange={e => updateCot(c.id, "num", e.target.value)} style={{ ...inpS, width: 50 }} /></td>
+              <td style={tds}><input value={c.proyecto} onChange={e => updateCot(c.id, "proyecto", e.target.value)} style={{ ...inpS, width: 160 }} /></td>
+              <td style={tds}><input value={c.cliente} onChange={e => updateCot(c.id, "cliente", e.target.value)} style={{ ...inpS, width: 100 }} /></td>
+              <td style={tds}><input value={c.contacto} onChange={e => updateCot(c.id, "contacto", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+              <td style={tds}><span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: c.tipo === "Antiguo" ? "rgba(107,76,154,.3)" : "rgba(45,125,210,.3)", color: c.tipo === "Antiguo" ? "#B39DDB" : "#64B5F6" }}>{c.tipo}</span></td>
+              <td style={tds}><input type="date" value={c.fecha} onChange={e => updateCot(c.id, "fecha", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+              <td style={tds}><select value={c.estado} onChange={e => updateCot(c.id, "estado", e.target.value)} style={{ ...selectS, width: 120, color: estadoColor(c.estado) }}>
+                <option value="Adjudicado">Adjudicado</option><option value="No Adjudicado">No Adjudicado</option><option value="Aun no definido">Aun no definido</option>
+              </select></td>
+              <td style={tds}><input type="number" value={c.presupuestoUF || ""} onChange={e => updateCot(c.id, "presupuestoUF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 80, textAlign: "right" }} /></td>
+              <td style={tds}><input type="number" value={c.gg || ""} onChange={e => updateCot(c.id, "gg", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 45, textAlign: "right" }} /></td>
+              <td style={tds}><input type="number" value={c.utilidad || ""} onChange={e => updateCot(c.id, "utilidad", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 45, textAlign: "right" }} /></td>
+              <td style={{ ...tds, color, fontWeight: 700 }}>{((c.gg || 0) + (c.utilidad || 0)).toFixed(1)}%</td>
+              <td style={tds}><input value={c.obs} onChange={e => updateCot(c.id, "obs", e.target.value)} style={{ ...inpS, width: 100 }} placeholder="..." /></td>
+              <td style={tds}><button onClick={() => delCot(c.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: "flex", gap: 12, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+        {VBtn("+ Agregar cotización", addCot, color)}
+        <span style={{ fontSize: 11, color: "#888" }}>Total presupuestado: <b style={{ color }}>{fmtUF(totalPresUF)} UF</b></span>
+        <span style={{ fontSize: 11, color: "#888" }}>Adjudicados: <b style={{ color: "#81C784" }}>{adjudicados}</b></span>
+        <span style={{ fontSize: 11, color: "#888" }}>No adj.: <b style={{ color: "#E84855" }}>{noAdj}</b></span>
+        <span style={{ fontSize: 11, color: "#888" }}>Pendientes: <b style={{ color: "#888" }}>{pendientes}</b></span>
+      </div>
+    </div>}
+
+    {/* TAB 1: Presupuestos en Estudio */}
+    {tab === 1 && <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+          <thead><tr>
+            {["Nombre", "Cliente", "Fecha Entrega", "Estado", "% Avance", "% Éxito", "Observaciones", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {data.estudios.map(e => <tr key={e.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+              <td style={tds}><input value={e.nombre} onChange={ev => updateEst(e.id, "nombre", ev.target.value)} style={{ ...inpS, width: 160 }} /></td>
+              <td style={tds}><input value={e.cliente} onChange={ev => updateEst(e.id, "cliente", ev.target.value)} style={{ ...inpS, width: 100 }} /></td>
+              <td style={tds}><input type="date" value={e.fechaEntrega} onChange={ev => updateEst(e.id, "fechaEntrega", ev.target.value)} style={{ ...inpS, width: 120 }} /></td>
+              <td style={tds}><input value={e.estado} onChange={ev => updateEst(e.id, "estado", ev.target.value)} style={{ ...inpS, width: 100 }} /></td>
+              <td style={tds}>
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div style={{ width: 60, height: 8, borderRadius: 4, background: "rgba(255,255,255,.06)", overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 4, background: color, width: (e.avance || 0) + "%", transition: "width .3s" }} />
+                  </div>
+                  <input type="number" min={0} max={100} value={e.avance || ""} onChange={ev => updateEst(e.id, "avance", parseInt(ev.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} />
+                </div>
+              </td>
+              <td style={tds}><input type="number" min={0} max={100} value={e.exito || ""} onChange={ev => updateEst(e.id, "exito", parseInt(ev.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
+              <td style={tds}><input value={e.obs} onChange={ev => updateEst(e.id, "obs", ev.target.value)} style={{ ...inpS, width: 140 }} placeholder="..." /></td>
+              <td style={tds}><button onClick={() => delEst(e.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar estudio", addEst, color)}</div>
+    </div>}
+
+    {/* TAB 2: Tabla Maestra Proyectos */}
+    {tab === 2 && <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+          <thead><tr>
+            {["ID", "Proyecto", "Estado", "Constructora", "Proyectista", "Subt.", "Pisos", "Deptos", "Sup m²", "Meses", "$/m² UF", "Total UF", "$/Depto", "m²/mes", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {data.proyectos.map(p => {
+              const costoDepto = p.deptos > 0 ? (p.totalUF / p.deptos).toFixed(1) : "-";
+              const eficiencia = p.tiempoMeses > 0 ? (p.supTotal / p.tiempoMeses).toFixed(0) : "-";
+              return <tr key={p.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+                <td style={tds}><input value={p.idProy} onChange={e => updateProy(p.id, "idProy", e.target.value)} style={{ ...inpS, width: 75 }} /></td>
+                <td style={tds}><input value={p.proyecto} onChange={e => updateProy(p.id, "proyecto", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+                <td style={tds}><select value={p.estado} onChange={e => updateProy(p.id, "estado", e.target.value)} style={{ ...selectS, width: 90, color: p.estado === "Ejecución" ? "#81C784" : color }}>
+                  <option value="Ejecución">Ejecución</option><option value="Propuesta">Propuesta</option><option value="Terminado">Terminado</option>
+                </select></td>
+                <td style={tds}><input value={p.constructora} onChange={e => updateProy(p.id, "constructora", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
+                <td style={tds}><input value={p.proyectista} onChange={e => updateProy(p.id, "proyectista", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
+                <td style={tds}><input type="number" value={p.subterraneos || ""} onChange={e => updateProy(p.id, "subterraneos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 35, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={p.pisos || ""} onChange={e => updateProy(p.id, "pisos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 35, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={p.deptos || ""} onChange={e => updateProy(p.id, "deptos", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={p.supTotal || ""} onChange={e => updateProy(p.id, "supTotal", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 60, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" value={p.tiempoMeses || ""} onChange={e => updateProy(p.id, "tiempoMeses", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
+                <td style={tds}><input type="number" step="0.001" value={p.costoM2UF || ""} onChange={e => updateProy(p.id, "costoM2UF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 55, textAlign: "right" }} /></td>
+                <td style={{ ...tds, color, fontWeight: 700 }}>{fmtUF(p.totalUF)}</td>
+                <td style={{ ...tds, color: "#64B5F6" }}>{costoDepto}</td>
+                <td style={{ ...tds, color: "#64B5F6" }}>{eficiencia}</td>
+                <td style={tds}><button onClick={() => delProy(p.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar proyecto", addProy, color)}</div>
+    </div>}
+
+    {/* TAB 3: Status Comercial */}
+    {tab === 3 && <div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
+          <thead><tr>
+            {["Obra", "Cliente", "Fecha", "Meses", "Dificultad", "Gente", "%GG", "%UT", "Monto UF", "Status", "Decisión", "Ganado por", ""].map(h => <th key={h} style={thS}>{h}</th>)}
+          </tr></thead>
+          <tbody>
+            {data.statusComercial.map(s => <tr key={s.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+              <td style={tds}><input value={s.obra} onChange={e => updateStat(s.id, "obra", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+              <td style={tds}><input value={s.cliente} onChange={e => updateStat(s.id, "cliente", e.target.value)} style={{ ...inpS, width: 80 }} /></td>
+              <td style={tds}><input type="date" value={s.fechaInicio} onChange={e => updateStat(s.id, "fechaInicio", e.target.value)} style={{ ...inpS, width: 120 }} /></td>
+              <td style={tds}><input type="number" value={s.meses || ""} onChange={e => updateStat(s.id, "meses", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
+              <td style={tds}><select value={s.dificultad} onChange={e => updateStat(s.id, "dificultad", e.target.value)} style={{ ...selectS, width: 75, color: difColor(s.dificultad) }}>
+                <option value="Baja">Baja</option><option value="Media">Media</option><option value="Alta">Alta</option>
+              </select></td>
+              <td style={tds}><input type="number" value={s.gente || ""} onChange={e => updateStat(s.id, "gente", parseInt(e.target.value) || 0)} style={{ ...inpS, width: 35, textAlign: "right" }} /></td>
+              <td style={tds}><input type="number" value={s.gg || ""} onChange={e => updateStat(s.id, "gg", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
+              <td style={tds}><input type="number" value={s.ut || ""} onChange={e => updateStat(s.id, "ut", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 40, textAlign: "right" }} /></td>
+              <td style={tds}><input type="number" value={s.montoUF || ""} onChange={e => updateStat(s.id, "montoUF", parseFloat(e.target.value) || 0)} style={{ ...inpS, width: 70, textAlign: "right" }} /></td>
+              <td style={tds}><select value={s.status} onChange={e => updateStat(s.id, "status", e.target.value)} style={{ ...selectS, width: 110, color: estadoColor(s.status) }}>
+                <option value="Adjudicada">Adjudicada</option><option value="Perdida">Perdida</option><option value="Aun no se define">Aun no se define</option>
+              </select></td>
+              <td style={tds}><input value={s.decision} onChange={e => updateStat(s.id, "decision", e.target.value)} style={{ ...inpS, width: 100 }} /></td>
+              <td style={tds}><input value={s.ganadoPor} onChange={e => updateStat(s.id, "ganadoPor", e.target.value)} style={{ ...inpS, width: 90 }} /></td>
+              <td style={tds}><button onClick={() => delStat(s.id)} style={{ background: "none", border: "none", color: "#E84855", cursor: "pointer", fontSize: 14 }}>×</button></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar entrada", addStat, color)}</div>
+    </div>}
+
+    {/* TAB 4: Dashboard */}
+    {tab === 4 && <div>
+      {/* KPI Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}>
+        {[
+          { label: "Total Presupuestado", val: fmtUF(totalPresUF) + " UF", icon: "📊" },
+          { label: "Total Cotizaciones", val: totalCot, icon: "📋" },
+          { label: "Tasa Adjudicación", val: tasaAdj + "%", icon: "🎯" },
+          { label: "Proys. en Ejecución", val: proysEjec, icon: "🏗️" },
+          { label: "Proys. en Propuesta", val: proysProp, icon: "📝" },
+          { label: "Total Departamentos", val: totalDeptos, icon: "🏢" },
+        ].map(k => <div key={k.label} style={cs.card}>
+          <div style={cs.lbl}>{k.icon} {k.label}</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color, marginTop: 4 }}>{k.val}</div>
+        </div>)}
+      </div>
+
+      {/* Funnel visual */}
+      <div style={{ ...cs.card, marginBottom: 12 }}>
+        <div style={cs.lbl}>Funnel comercial</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "end", marginTop: 8, height: 100 }}>
+          {[
+            { label: "Enviadas", val: totalCot, color: "#2D7DD2" },
+            { label: "Pendientes", val: pendientes, color },
+            { label: "Adjudicadas", val: adjudicados, color: "#81C784" },
+            { label: "No Adj.", val: noAdj, color: "#E84855" },
+          ].map(f => {
+            const pct = totalCot > 0 ? Math.max(10, f.val / totalCot * 100) : 10;
+            return <div key={f.label} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: f.color, marginBottom: 4 }}>{f.val}</div>
+              <div style={{ width: "100%", height: pct + "%", minHeight: 8, borderRadius: 6, background: f.color + "44" }} />
+              <div style={{ fontSize: 9, color: "#888", marginTop: 4 }}>{f.label}</div>
+            </div>;
+          })}
+        </div>
+      </div>
+
+      {/* Resumen por estado */}
+      <div style={cs.card}>
+        <div style={cs.lbl}>Resumen por estado - Cotizaciones</div>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+          <thead><tr>
+            <th style={thS}>Estado</th><th style={thS}>Cantidad</th><th style={thS}>UF Total</th><th style={thS}>% del Total</th>
+          </tr></thead>
+          <tbody>
+            {["Adjudicado", "No Adjudicado", "Aun no definido"].map(est => {
+              const items = data.cotizaciones.filter(c => c.estado === est);
+              const uf = items.reduce((a, c) => a + (c.presupuestoUF || 0), 0);
+              return <tr key={est} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+                <td style={{ ...tds, color: estadoColor(est), fontWeight: 600 }}>{est}</td>
+                <td style={tds}>{items.length}</td>
+                <td style={tds}>{fmtUF(uf)}</td>
+                <td style={tds}>{totalPresUF > 0 ? Math.round(uf / totalPresUF * 100) : 0}%</td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>}
   </div>;
 }
 
@@ -1630,6 +1967,7 @@ export default function App() {
           {tplType === "projectflow" && <ProjectFlowEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "standards" && <StandardsEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "breakeven" && <BreakevenEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "comercial" && <ComercialEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
         </div>
       </div>;
