@@ -5,9 +5,9 @@ entrypoint = "src/App.jsx"
 channel = "stable-24_05"
 
 [deployment]
-run = ["sh", "-c", "npm run build && npm run preview"]
-build = ["sh", "-c", "npm install"]
+run = ["sh", "-c", "node server.js"]
+build = ["sh", "-c", "npm install && npm run build"]
 
 [[ports]]
-localPort = 5173
+localPort = 3000
 externalPort = 80

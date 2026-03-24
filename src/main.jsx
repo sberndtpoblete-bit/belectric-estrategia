@@ -2,45 +2,49 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
-// Polyfill window.storage using localStorage (replaces Claude artifact storage API)
+// Cloud storage via Express API (replaces localStorage polyfill)
 window.storage = {
   async get(key) {
-    try {
-      const value = localStorage.getItem(key);
-      if (value === null) throw new Error('Key not found');
-      return { key, value };
-    } catch (e) {
-      throw e;
-    }
+    const res = await fetch(`/api/storage/${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error('Key not found');
+    return res.json();
   },
   async set(key, value) {
-    try {
-      localStorage.setItem(key, value);
-      return { key, value };
-    } catch (e) {
-      return null;
-    }
+    const res = await fetch(`/api/storage/${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    });
+    if (!res.ok) return null;
+    return res.json();
   },
   async delete(key) {
-    try {
-      localStorage.removeItem(key);
-      return { key, deleted: true };
-    } catch (e) {
-      return null;
-    }
+    const res = await fetch(`/api/storage/${encodeURIComponent(key)}`, { method: 'DELETE' });
+    if (!res.ok) return null;
+    return res.json();
   },
   async list(prefix = '') {
-    const keys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k.startsWith(prefix)) keys.push(k);
-    }
-    return { keys };
+    const res = await fetch(`/api/storage?prefix=${encodeURIComponent(prefix)}`);
+    return res.json();
   }
 };
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+// Seed: migrar datos de localStorage a la nube (una sola vez)
+async function seedIfNeeded() {
+  for (const key of ['belectric-v4', 'kiki-v4']) {
+    const local = localStorage.getItem(key);
+    if (!local) continue;
+    try {
+      await window.storage.get(key); // ya existe en la nube? skip
+    } catch {
+      await window.storage.set(key, local); // subir desde localStorage
+      console.log(`Seeded ${key} to cloud`);
+    }
+  }
+}
+
+seedIfNeeded().then(() => {
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    <React.StrictMode><App /></React.StrictMode>
+  );
+});
