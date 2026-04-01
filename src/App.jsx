@@ -265,6 +265,7 @@ const PILLARS = [
       { key: "cxc", label: "Cuentas por cobrar", desc: "Cobranza y juicios activos", template: { sections: [{ key: "juicios", label: "Juicios activos", placeholder: "Demandas ejecutivas, montos, estado..." }, { key: "pendientes", label: "Facturas pendientes", placeholder: "Facturas no vencidas y próximas a vencer..." }, { key: "politica", label: "Política de cobranza", placeholder: "Plazos, escalamiento, acciones..." }]}},
       { key: "proyecciones", label: "Proyecciones", desc: "Forecast financiero", template: { sections: [{ key: "corto", label: "Proyección 12 meses", placeholder: "Mes a mes..." }, { key: "largo", label: "Proyección 3 años", placeholder: "Escenarios..." }]}},
       { key: "kpiFinancieros", label: "KPIs financieros", desc: "Indicadores clave", template: { sections: [{ key: "indicadores", label: "KPIs que se miden", placeholder: "Margen bruto, EBITDA, ROI..." }, { key: "metas", label: "Metas del año", placeholder: "Objetivos numéricos..." }]}},
+      { key: "socios", label: "Socios y Dividendos", desc: "Participación y repartición", template: { type: "socios", dataKey: "socios" }},
     ],
   },
   {
@@ -1712,6 +1713,134 @@ function SuppliersEditor({ pid, ik, ct, onUpdate, color }) {
   </div>;
 }
 
+function SociosEditor({ pid, ik, ct, onUpdate, color }) {
+  const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
+  const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
+  const dk = `${pid}-${ik}-socios`;
+  const data = getJSON(dk, { socios: [], dividendos: [] });
+  const save = (d) => setJSON(dk, d);
+
+  const [tab, setTab] = useState(0);
+  const [nuevoMonto, setNuevoMonto] = useState("");
+  const [nuevaFecha, setNuevaFecha] = useState("");
+  const [nuevaNota, setNuevaNota] = useState("");
+  const tabs = [{ label: "Socios", icon: "👥" }, { label: "Historial", icon: "📋" }, { label: "Nueva Repartición", icon: "💰" }];
+
+  const cs = { card: { padding: "14px 18px", borderRadius: 12, background: "linear-gradient(135deg, rgba(0,0,0,.25), rgba(0,0,0,.15))", border: "1px solid rgba(255,255,255,.06)", backdropFilter: "blur(10px)" } };
+  const inpS = { padding: "7px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 11, fontFamily: "'DM Sans',sans-serif", outline: "none", boxSizing: "border-box", width: "100%" };
+  const thS = { padding: "10px 6px", fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 0.8, whiteSpace: "nowrap", borderBottom: `2px solid ${color}22`, textAlign: "left", fontWeight: 700 };
+  const tds = { padding: "8px 6px", fontSize: 11, color: "#ccc", whiteSpace: "nowrap" };
+
+  const fmtCLP = (n) => "$" + (n || 0).toLocaleString("es-CL");
+  const sumPct = data.socios.reduce((s, p) => s + (parseFloat(p.porcentaje) || 0), 0);
+
+  // Socios CRUD
+  const addSocio = () => save({ ...data, socios: [...data.socios, { id: genId(), nombre: "", rut: "", porcentaje: 0 }] });
+  const updateSocio = (id, field, val) => save({ ...data, socios: data.socios.map(s => s.id === id ? { ...s, [field]: field === "porcentaje" ? parseFloat(val) || 0 : val } : s) });
+  const delSocio = (id) => { if (window.confirm("¿Eliminar socio?")) save({ ...data, socios: data.socios.filter(s => s.id !== id) }); };
+
+  // Dividendos
+  const delDiv = (id) => { if (window.confirm("¿Eliminar registro?")) save({ ...data, dividendos: data.dividendos.filter(d => d.id !== id) }); };
+  const registrar = () => {
+    const monto = parseFloat(nuevoMonto) || 0;
+    if (!monto || !nuevaFecha) return;
+    const detalle = data.socios.map(s => ({ socioId: s.id, nombre: s.nombre, porcentaje: s.porcentaje, monto: Math.round(monto * (s.porcentaje || 0) / 100) }));
+    save({ ...data, dividendos: [{ id: genId(), fecha: nuevaFecha, montoTotal: monto, detalle, nota: nuevaNota }, ...data.dividendos] });
+    setNuevoMonto(""); setNuevaFecha(""); setNuevaNota("");
+  };
+
+  const divsSorted = [...data.dividendos].sort((a, b) => (b.fecha || "").localeCompare(a.fecha || ""));
+
+  return <div>
+    <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
+      {tabs.map((t, i) => <button key={i} onClick={() => setTab(i)} style={{ padding: "8px 16px", borderRadius: 10, border: `1px solid ${tab === i ? color : "rgba(255,255,255,.08)"}`, background: tab === i ? color + "22" : "rgba(0,0,0,.2)", color: tab === i ? color : "#888", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", display: "flex", alignItems: "center", gap: 6 }}><span>{t.icon}</span>{t.label}</button>)}
+    </div>
+
+    {tab === 0 && <div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <span style={{ fontSize: 12, color: "#888" }}>Participación total:</span>
+        <span style={{ padding: "4px 12px", borderRadius: 8, fontSize: 13, fontWeight: 700, background: Math.abs(sumPct - 100) < 0.01 ? "#2d6a4f22" : "#e6394622", color: Math.abs(sumPct - 100) < 0.01 ? "#52b788" : "#e63946" }}>{sumPct.toFixed(1)}%</span>
+        {Math.abs(sumPct - 100) >= 0.01 && <span style={{ fontSize: 11, color: "#e63946" }}>({sumPct < 100 ? "faltan" : "sobran"} {Math.abs(100 - sumPct).toFixed(1)}%)</span>}
+      </div>
+      <div style={{ ...cs.card, padding: 0, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr>
+            <th style={thS}>Nombre</th><th style={thS}>RUT</th><th style={{ ...thS, textAlign: "right" }}>%</th><th style={{ ...thS, width: 40 }}></th>
+          </tr></thead>
+          <tbody>{data.socios.map(s => <tr key={s.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+            <td style={tds}><input value={s.nombre} onChange={e => updateSocio(s.id, "nombre", e.target.value)} placeholder="Nombre socio" style={{ ...inpS, width: 180 }} /></td>
+            <td style={tds}><input value={s.rut} onChange={e => updateSocio(s.id, "rut", e.target.value)} placeholder="12.345.678-9" style={{ ...inpS, width: 130 }} /></td>
+            <td style={{ ...tds, textAlign: "right" }}><input type="number" value={s.porcentaje} onChange={e => updateSocio(s.id, "porcentaje", e.target.value)} style={{ ...inpS, width: 70, textAlign: "right" }} /></td>
+            <td style={tds}><button onClick={() => delSocio(s.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 14 }}>🗑</button></td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 10 }}>{VBtn("+ Agregar socio", addSocio, color)}</div>
+    </div>}
+
+    {tab === 1 && <div>
+      {divsSorted.length === 0 && <div style={{ ...cs.card, textAlign: "center", color: "#666", padding: 30 }}>No hay reparticiones registradas</div>}
+      {divsSorted.map(d => <div key={d.id} style={{ ...cs.card, marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 11, color: "#888" }}>{d.fecha}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "#e0e0e0" }}>{fmtCLP(d.montoTotal)}</span>
+            {d.nota && <span style={{ fontSize: 11, color: "#888", fontStyle: "italic" }}>— {d.nota}</span>}
+          </div>
+          <button onClick={() => delDiv(d.id)} style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 14 }}>🗑</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 6 }}>
+          {(d.detalle || []).map((det, i) => <div key={i} style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.04)", fontSize: 11 }}>
+            <div style={{ color: "#aaa", fontWeight: 600 }}>{det.nombre || "Sin nombre"}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}>
+              <span style={{ color: "#666" }}>{det.porcentaje}%</span>
+              <span style={{ color: color, fontWeight: 700 }}>{fmtCLP(det.monto)}</span>
+            </div>
+          </div>)}
+        </div>
+      </div>)}
+    </div>}
+
+    {tab === 2 && <div>
+      {data.socios.length === 0 && <div style={{ ...cs.card, textAlign: "center", color: "#e63946", padding: 20, marginBottom: 12 }}>Primero agrega socios en la pestaña "Socios"</div>}
+      <div style={{ ...cs.card, marginBottom: 12 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Monto total (CLP)</div>
+            <input type="number" value={nuevoMonto} onChange={e => setNuevoMonto(e.target.value)} placeholder="0" style={inpS} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Fecha de pago</div>
+            <input type="date" value={nuevaFecha} onChange={e => setNuevaFecha(e.target.value)} style={inpS} />
+          </div>
+        </div>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Nota / concepto</div>
+          <input value={nuevaNota} onChange={e => setNuevaNota(e.target.value)} placeholder="Ej: Dividendos Q1 2026" style={inpS} />
+        </div>
+      </div>
+
+      {parseFloat(nuevoMonto) > 0 && data.socios.length > 0 && <div style={{ ...cs.card, marginBottom: 12 }}>
+        <div style={{ fontSize: 10, color: "#666", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Distribución propuesta</div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr><th style={thS}>Socio</th><th style={{ ...thS, textAlign: "right" }}>%</th><th style={{ ...thS, textAlign: "right" }}>Monto</th></tr></thead>
+          <tbody>{data.socios.map(s => {
+            const m = Math.round((parseFloat(nuevoMonto) || 0) * (s.porcentaje || 0) / 100);
+            return <tr key={s.id} style={{ borderBottom: "1px solid rgba(255,255,255,.04)" }}>
+              <td style={tds}>{s.nombre || "Sin nombre"}</td>
+              <td style={{ ...tds, textAlign: "right" }}>{s.porcentaje}%</td>
+              <td style={{ ...tds, textAlign: "right", fontWeight: 700, color }}>{fmtCLP(m)}</td>
+            </tr>;
+          })}</tbody>
+          <tfoot><tr><td style={{ ...tds, fontWeight: 700, color: "#e0e0e0" }}>Total</td><td style={{ ...tds, textAlign: "right", fontWeight: 700, color: "#e0e0e0" }}>{sumPct.toFixed(1)}%</td><td style={{ ...tds, textAlign: "right", fontWeight: 700, color: "#e0e0e0" }}>{fmtCLP(parseFloat(nuevoMonto) || 0)}</td></tr></tfoot>
+        </table>
+      </div>}
+
+      <div>{VBtn("Registrar repartición", registrar, color)}</div>
+    </div>}
+  </div>;
+}
+
 function getSt(v) { return STATUS_OPTIONS.find(s => s.value === v) || STATUS_OPTIONS[0]; }
 function calcProg(p, st) {
   const t = p.items.length; if (!t) return 0;
@@ -2043,6 +2172,7 @@ export default function App() {
           {tplType === "breakeven" && <BreakevenEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "comercial" && <ComercialEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "suppliers" && <SuppliersEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "socios" && <SociosEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
         </div>
       </div>;
     }
