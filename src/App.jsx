@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 function hexToRgba(hex, alpha) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
@@ -371,10 +373,65 @@ function genId() { return Math.random().toString(36).slice(2, 9); }
 const VBtn = (label, onClick, color, small) => <button onClick={onClick} style={{ padding: small ? "4px 10px" : "8px 14px", borderRadius: 8, border: `1px solid ${color || "#888"}44`, background: `${color || "#888"}18`, color: color || "#888", fontSize: small ? 11 : 12, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif" }}>{label}</button>;
 const VInp = (value, onChange, placeholder, style2) => <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(255,255,255,.1)", background: "rgba(0,0,0,.3)", color: "#e0e0e0", fontSize: 13, fontFamily: "'DM Sans',sans-serif", outline: "none", width: "100%", boxSizing: "border-box", ...style2 }} />;
 
-function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
+function OrgChartEditor({ pid, ik, ct, onUpdate, color, itemLabel }) {
   const getJSON = (key, fb) => { try { return JSON.parse(ct[key] || "null") || fb; } catch { return fb; } };
   const setJSON = (key, d) => onUpdate(key, JSON.stringify(d));
   const [tab, setTab] = useState("actual");
+  const chartRef = useRef(null);
+  const downloadPDF = async () => {
+    const node = chartRef.current;
+    if (!node) return;
+    const canvas = await html2canvas(node, {
+      scale: 2,
+      backgroundColor: "#ffffff",
+      useCORS: true,
+      onclone: (doc, cloned) => {
+        const all = cloned.querySelectorAll("*");
+        all.forEach(el => {
+          const cs = doc.defaultView.getComputedStyle(el);
+          const c = cs.color;
+          if (c && (c.includes("224, 224, 224") || c.includes("136, 136, 136") || c.includes("102, 102, 102") || c.includes("85, 85, 85"))) {
+            el.style.color = "#222";
+          }
+          const bg = cs.backgroundColor;
+          if (bg && bg.includes("rgba(255, 255, 255")) {
+            el.style.backgroundColor = "#f5f5f5";
+          }
+          const bc = cs.borderColor;
+          if (bc && bc.includes("rgba(255, 255, 255")) {
+            el.style.borderColor = "#cccccc";
+          }
+        });
+      }
+    });
+    const imgW = canvas.width;
+    const imgH = canvas.height;
+    const orientation = imgW >= imgH ? "landscape" : "portrait";
+    const pdf = new jsPDF({ orientation, unit: "mm", format: "a4" });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    const titleH = 14;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.text(`Organigrama — ${itemLabel || ""} (${tab})`, margin, margin + 5);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+    pdf.setTextColor(120);
+    pdf.text(new Date().toLocaleDateString("es-CL"), pageW - margin, margin + 5, { align: "right" });
+    pdf.setTextColor(0);
+    const availW = pageW - margin * 2;
+    const availH = pageH - margin * 2 - titleH;
+    const ratio = Math.min(availW / imgW, availH / imgH);
+    const drawW = imgW * ratio;
+    const drawH = imgH * ratio;
+    const x = (pageW - drawW) / 2;
+    const y = margin + titleH + (availH - drawH) / 2;
+    pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, drawW, drawH);
+    const safe = (itemLabel || "organigrama").replace(/[^a-z0-9]+/gi, "-");
+    const date = new Date().toISOString().slice(0, 10);
+    pdf.save(`Organigrama-${safe}-${tab}-${date}.pdf`);
+  };
   const defaultTree = { nodes: [{ id: "root", name: "Director General", cargo: "", children: [] }] };
   const actualKey = `${pid}-${ik}-tree`;
   const projKey = `${pid}-${ik}-tree-proj`;
@@ -466,14 +523,17 @@ function OrgChartEditor({ pid, ik, ct, onUpdate, color }) {
   return <div>
     <div style={{ display: "flex", gap: 8, marginBottom: 16, alignItems: "center" }}>
       {["actual", "proyectado"].map(t => <button key={t} onClick={() => switchTab(t)} style={{ padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12, fontWeight: 600, cursor: "pointer", background: tab === t ? color + "33" : "rgba(255,255,255,.05)", color: tab === t ? color : "#888", fontFamily: "'DM Sans',sans-serif", textTransform: "capitalize" }}>{t}</button>)}
-      {tab === "proyectado" && <div style={{ marginLeft: "auto" }}>{VBtn("↩ Resetear desde actual", () => { if (window.confirm("¿Reemplazar organigrama proyectado con el actual?")) setJSON(projKey, actualTree); }, "#E84855", true)}</div>}
+      <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+        {VBtn("⬇ Descargar PDF", downloadPDF, color, true)}
+        {tab === "proyectado" && VBtn("↩ Resetear desde actual", () => { if (window.confirm("¿Reemplazar organigrama proyectado con el actual?")) setJSON(projKey, actualTree); }, "#E84855", true)}
+      </div>
     </div>
     {moving && (() => { const mn = findNode(tree.nodes, moving); return <div style={{ padding: "10px 16px", borderRadius: 10, marginBottom: 12, background: "rgba(45,125,210,.12)", border: "1px solid rgba(45,125,210,.3)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 13, color: "#e0e0e0" }}>
       <span>Selecciona nuevo padre para <strong>{mn?.name || "..."}</strong></span>
       {VBtn("Cancelar", () => { setMoving(null); setHoverTarget(null); }, "#E84855", true)}
     </div>; })()}
     <div style={{ overflowX: "auto", padding: "20px 0" }}>
-      <div style={{ display: "inline-flex", minWidth: "100%", justifyContent: "center" }}>
+      <div ref={chartRef} style={{ display: "inline-flex", minWidth: "100%", justifyContent: "center", padding: 20 }}>
         {tree.nodes.map(n => renderNode(n, 0))}
       </div>
     </div>
@@ -2160,7 +2220,7 @@ export default function App() {
     if (isVisual) {
       return <div style={S}>{detailHeader}
         <div style={{ padding: "16px 20px 40px" }}>
-          {tplType === "orgchart" && <OrgChartEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
+          {tplType === "orgchart" && <OrgChartEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} itemLabel={it.label} />}
           {tplType === "roles" && <RolesEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "pipeline" && <PipelineEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} />}
           {tplType === "checklist" && <ChecklistEditor pid={pl.id} ik={it.key} ct={ct} onUpdate={uCt2} color={pl.color} variant={it.template.variant} />}
